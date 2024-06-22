@@ -1,4 +1,4 @@
-module github.com/globalxtreme/go-core
+module github.com/globalxtreme/go-core/v2
 
 go 1.22
 
