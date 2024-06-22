@@ -1,4 +1,4 @@
-package middleware
+package xtrememdw
 
 import (
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
