@@ -1,4 +1,4 @@
-package model
+package xtrememodel
 
 type RabbitMQMessage struct {
 	RabbitMQBaseModel

@@ -1,7 +1,7 @@
 package xtremepkg
 
 import (
-	"github.com/globalxtreme/go-core/response"
+	xtremeres "github.com/globalxtreme/go-core/response"
 	"io"
 	"math/rand"
 	"mime/multipart"
@@ -90,7 +90,7 @@ func GetMimeType(file multipart.File, handler *multipart.FileHeader, mimeType *s
 		buf := make([]byte, 512)
 		n, err := file.Read(buf)
 		if err != nil && err != io.EOF {
-			response.ErrXtremeUploadFile("Unable to reading file!!")
+			xtremeres.ErrXtremeUploadFile("Unable to reading file!!")
 		}
 
 		mimeTypeSystem := http.DetectContentType(buf[:n])

@@ -1,9 +1,9 @@
-package xtremepkg
+package xtremefs
 
 import (
 	"encoding/base64"
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/gorilla/mux"
+	"github.com/globalxtreme/go-core/pkg"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -11,52 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 )
-
-type Storage struct {
-	IsPublic bool
-}
-
-func (repo Storage) GetFullPath(path string) string {
-	baseDir, _ := os.Getwd()
-
-	var storageDir string
-	if repo.IsPublic {
-		storageDir = SetStorageAppPublicDir(path)
-	} else {
-		storageDir = SetStorageDir(path)
-	}
-
-	return baseDir + "/" + storageDir
-}
-
-func (repo Storage) GetFullPathURL(path string) string {
-	return os.Getenv("API_GATEWAY_LINK_URL") + path
-}
-
-func (repo Storage) ShowFile(w http.ResponseWriter, r *http.Request, paths ...string) {
-	var path string
-
-	if len(paths) > 0 {
-		path = paths[0]
-	} else {
-		vars := mux.Vars(r)
-		path = vars["path"]
-	}
-
-	if repo.IsPublic {
-		path = SetStorageAppPublicDir(path)
-	} else {
-		path = SetStorageDir(path)
-	}
-
-	realPath := storageCheckPath(path)
-	if realPath == nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	http.ServeFile(w, r, realPath.(string))
-}
 
 type Uploader struct {
 	Path     string
@@ -78,7 +32,7 @@ func (st Uploader) SetName(name string) Uploader {
 
 func (st Uploader) MoveFile(r *http.Request, param string) (any, error) {
 	if len(st.Name) == 0 {
-		st.Name = RandomString(20)
+		st.Name = xtremepkg.RandomString(20)
 	}
 
 	file, handler, err := r.FormFile(param)
@@ -89,12 +43,12 @@ func (st Uploader) MoveFile(r *http.Request, param string) (any, error) {
 
 	var storagePath string
 	if st.IsPublic {
-		storagePath = SetStorageAppPublicDir()
+		storagePath = xtremepkg.SetStorageAppPublicDir()
 	} else {
-		storagePath = SetStorageAppDir()
+		storagePath = xtremepkg.SetStorageAppDir()
 	}
 
-	CheckAndCreateDirectory(storagePath + "/" + st.Path)
+	xtremepkg.CheckAndCreateDirectory(storagePath + "/" + st.Path)
 
 	filename := st.Name + filepath.Ext(handler.Filename)
 
@@ -114,17 +68,17 @@ func (st Uploader) MoveFile(r *http.Request, param string) (any, error) {
 
 func (st Uploader) MoveContent(content string) (any, error) {
 	if len(st.Name) == 0 {
-		st.Name = RandomString(20)
+		st.Name = xtremepkg.RandomString(20)
 	}
 
 	var storagePath string
 	if st.IsPublic {
-		storagePath = SetStorageAppPublicDir()
+		storagePath = xtremepkg.SetStorageAppPublicDir()
 	} else {
-		storagePath = SetStorageAppDir()
+		storagePath = xtremepkg.SetStorageAppDir()
 	}
 
-	CheckAndCreateDirectory(storagePath + "/" + st.Path)
+	xtremepkg.CheckAndCreateDirectory(storagePath + "/" + st.Path)
 
 	fileBytes, err := base64.StdEncoding.DecodeString(content)
 	if err != nil {

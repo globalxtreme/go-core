@@ -1,4 +1,4 @@
-package response
+package xtremeres
 
 import (
 	"encoding/json"

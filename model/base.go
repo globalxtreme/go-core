@@ -1,4 +1,4 @@
-package model
+package xtrememodel
 
 import (
 	"database/sql/driver"

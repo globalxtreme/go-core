@@ -1,62 +1,20 @@
-package xtremepkg
+package xtremerabbitmq
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/globalxtreme/go-core/model"
+	xtrememodel "github.com/globalxtreme/go-core/model"
 	"github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 	"log"
 	"os/exec"
-	"time"
 )
 
 var (
-	RabbitMQConsumerData map[string]RabbitMQConsumerInterface
-	RabbitMQSQL          *gorm.DB
-	RabbitMQConf         rabbitmqconf
+	RabbitMQSQL  *gorm.DB
+	RabbitMQConf rabbitmqconf
 )
-
-type rabbitmqconf struct {
-	Queue      string
-	Connection RabbitMQConnection
-	Exchange   RabbitMQExchange
-	Timeout    time.Duration
-}
-
-type RabbitMQConnection struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-}
-
-type RabbitMQExchange struct {
-	Name       string
-	Type       string
-	Durable    bool
-	AutoDelete bool
-	Internal   bool
-	NoWait     bool
-	Args       amqp091.Table
-}
-
-type RabbitMQConsumerInterface interface {
-	Consume(message any) error
-}
-
-type RabbitMQConsumer struct {
-}
-
-func (RabbitMQConsumer) Set(consumers map[string]RabbitMQConsumerInterface) {
-	RabbitMQConsumerData = consumers
-}
-
-func (RabbitMQConsumer) Get(key string) RabbitMQConsumerInterface {
-	consumer := RabbitMQConsumerData[key]
-	return consumer
-}
 
 type RabbitMQ struct {
 	Data       interface{}
@@ -97,7 +55,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 	config := RabbitMQConf
 	exchange := config.Exchange
 
-	var message model.RabbitMQMessage
+	var message xtrememodel.RabbitMQMessage
 
 	if mq.MessageId != nil {
 		RabbitMQSQL.First(&message, mq.MessageId)
@@ -120,7 +78,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 	}
 
 	if message.ID == 0 {
-		message.Statuses = make(model.MapBoolColumn)
+		message.Statuses = make(xtrememodel.MapBoolColumn)
 		for _, queue := range mq.Queues {
 			message.Statuses[queue] = false
 		}

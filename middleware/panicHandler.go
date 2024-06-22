@@ -19,12 +19,12 @@ func PanicHandler(next http.Handler) http.Handler {
 				fmt.Fprintf(os.Stderr, "panic: %v\n", r)
 				xtremepkg.Error(r)
 
-				var res *response.ResponseError
-				if panicData, ok := r.(*response.ResponseError); ok {
+				var res *xtremeres.ResponseError
+				if panicData, ok := r.(*xtremeres.ResponseError); ok {
 					res = panicData
 				} else {
-					res = &response.ResponseError{
-						Status: response.Status{
+					res = &xtremeres.ResponseError{
+						Status: xtremeres.Status{
 							Code:    http.StatusInternalServerError,
 							Message: "An error Occurred.",
 						},

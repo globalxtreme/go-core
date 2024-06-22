@@ -1,15 +1,13 @@
-package xtremepkg
+package xtremequeue
 
 import (
 	"fmt"
 	"github.com/gocraft/work"
-	"github.com/gomodule/redigo/redis"
 	"gorm.io/gorm/utils"
 	"log"
 	"os"
 	"os/signal"
 	"strings"
-	"time"
 )
 
 type JobConf struct {
@@ -19,20 +17,6 @@ type JobConf struct {
 	JobName     string
 	Priority    uint
 	Concurrency uint
-}
-
-func RegisterRedis() {
-	RedisPool = &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial("tcp", fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")))
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
-	}
 }
 
 type Queue struct {

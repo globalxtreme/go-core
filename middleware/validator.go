@@ -2,12 +2,11 @@ package middleware
 
 import (
 	xtremepkg "github.com/globalxtreme/go-core/pkg"
-	"github.com/globalxtreme/go-core/response"
+	xtremeres "github.com/globalxtreme/go-core/response"
 	"github.com/go-playground/validator/v10"
 	"net/http"
 	"strings"
 	"time"
-	"unicode"
 )
 
 type Validator struct{}
@@ -17,21 +16,13 @@ func (v Validator) Make(r *http.Request, rules interface{}) {
 	if err != nil {
 		var attributes []interface{}
 		for _, e := range err.(validator.ValidationErrors) {
-			key := e.Field()
-			if key != "" {
-				runes := []rune(key)
-				runes[0] = unicode.ToLower(runes[0])
-
-				key = string(runes)
-			}
-
 			attributes = append(attributes, map[string]interface{}{
-				"param":   key,
+				"param":   e.Field(),
 				"message": getMessage(e.Error()),
 			})
 		}
 
-		response.ErrXtremeValidation(attributes)
+		xtremeres.ErrXtremeValidation(attributes)
 	}
 }
 

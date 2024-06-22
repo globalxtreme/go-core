@@ -3,7 +3,6 @@ package xtremepkg
 import (
 	"fmt"
 	"github.com/go-playground/validator/v10"
-	"github.com/gomodule/redigo/redis"
 	"github.com/joho/godotenv"
 	"os"
 	"strconv"
@@ -22,9 +21,6 @@ var (
 
 	// RPCDialTimeout --> gRPC dial timout to another services
 	RPCDialTimeout time.Duration
-
-	// RedisPool --> Redis pool for queue worker
-	RedisPool *redis.Pool
 
 	// XtremeValidate --> Validation configuration
 	XtremeValidate *validator.Validate

@@ -1,7 +1,8 @@
-package xtremepkg
+package xtremecore
 
 import (
 	"fmt"
+	"github.com/globalxtreme/go-core/pkg"
 	"gopkg.in/mail.v2"
 	"os"
 )
@@ -23,7 +24,7 @@ type Mail struct {
 }
 
 func (m *Mail) Dial(conf MailConf) *Mail {
-	m.dialer = mail.NewDialer(conf.Host, ToInt(conf.Port), conf.Username, conf.Password)
+	m.dialer = mail.NewDialer(conf.Host, xtremepkg.ToInt(conf.Port), conf.Username, conf.Password)
 
 	return m
 }
@@ -33,7 +34,7 @@ func (m *Mail) Send(msg MailMessage) error {
 	content.SetHeader("From", content.FormatAddress(os.Getenv("MAIL_FROM_ADDRESS"), os.Getenv("MAIL_FROM_NAME")))
 
 	if err := m.dialer.DialAndSend(content); err != nil {
-		Error(fmt.Sprintf("Error sending email: %v", err))
+		xtremepkg.Error(fmt.Sprintf("Error sending email: %v", err))
 		return err
 	}
 

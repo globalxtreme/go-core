@@ -1,4 +1,4 @@
-package response
+package xtremeres
 
 type ResponseSuccess struct {
 	Status Status `json:"status"`

@@ -3,8 +3,9 @@ package command
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/globalxtreme/go-core/model"
+	model2 "github.com/globalxtreme/go-core/model"
 	xtremepkg "github.com/globalxtreme/go-core/pkg"
+	xtremerabbitmq "github.com/globalxtreme/go-core/rabbitmq"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/spf13/cobra"
 	"log"
@@ -36,7 +37,7 @@ func (class *RabbitMQConsumeCommand) Command(cmd *cobra.Command) {
 }
 
 func (class *RabbitMQConsumeCommand) Handle() {
-	config := xtremepkg.RabbitMQConf
+	config := xtremerabbitmq.RabbitMQConf
 	connConf := config.Connection
 	exchange := config.Exchange
 
@@ -125,9 +126,9 @@ func processConsume(body []byte) {
 
 	log.Printf("KEY: %s => %s", mqBody.Key, time.DateTime)
 
-	var queueMessage model.RabbitMQMessage
+	var queueMessage model2.RabbitMQMessage
 
-	err = xtremepkg.RabbitMQSQL.First(&queueMessage, mqBody.MessageId).Error
+	err = xtremerabbitmq.RabbitMQSQL.First(&queueMessage, mqBody.MessageId).Error
 	if err != nil {
 		consumeInvalid(mqBody, fmt.Sprintf("Get message data: %s", err))
 		return
@@ -138,7 +139,7 @@ func processConsume(body []byte) {
 		return
 	}
 
-	consumer := xtremepkg.RabbitMQConsumer{}.Get(mqBody.Key)
+	consumer := xtremerabbitmq.Consumer{}.Get(mqBody.Key)
 	if consumer == nil {
 		consumeInvalid(mqBody, fmt.Sprintf("Your key does not exist: %s", err))
 		return
@@ -155,9 +156,9 @@ func processConsume(body []byte) {
 	log.Printf("SUCCESS:....................................  %s", time.DateTime)
 }
 
-func updateMessageStatus(message model.RabbitMQMessage) {
+func updateMessageStatus(message model2.RabbitMQMessage) {
 	statuses := message.Statuses
-	statuses[xtremepkg.RabbitMQConf.Queue] = true
+	statuses[xtremerabbitmq.RabbitMQConf.Queue] = true
 
 	finished := true
 	for _, status := range statuses {
@@ -170,7 +171,7 @@ func updateMessageStatus(message model.RabbitMQMessage) {
 	message.Statuses = statuses
 	message.Finished = finished
 
-	err := xtremepkg.RabbitMQSQL.Save(&message).Error
+	err := xtremerabbitmq.RabbitMQSQL.Save(&message).Error
 	if err != nil {
 		xtremepkg.Error(fmt.Sprintf("Update message status invalid: %s", err))
 	}
@@ -181,15 +182,15 @@ func consumeInvalid(mqBody rabbitmqbody, message string) {
 
 	payload, _ := json.Marshal(mqBody.Message)
 
-	var messageFailed model.RabbitMQMessageFailed
+	var messageFailed model2.RabbitMQMessageFailed
 	messageFailed.MessageId = mqBody.MessageId
 	messageFailed.Sender = mqBody.Queue
-	messageFailed.Consumer = xtremepkg.RabbitMQConf.Queue
+	messageFailed.Consumer = xtremerabbitmq.RabbitMQConf.Queue
 	messageFailed.Key = mqBody.Key
 	messageFailed.Payload = payload
 	messageFailed.Exception = map[string]interface{}{"message": message, "trace": ""}
 
-	err := xtremepkg.RabbitMQSQL.Save(&messageFailed).Error
+	err := xtremerabbitmq.RabbitMQSQL.Save(&messageFailed).Error
 	if err != nil {
 		xtremepkg.Error(fmt.Sprintf("Save message failed invalid: %s", err))
 	}

@@ -1,8 +1,8 @@
-package database
+package xtremedb
 
 import (
 	"fmt"
-	xtremepkg "github.com/globalxtreme/go-core/pkg"
+	"github.com/globalxtreme/go-core/pkg"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

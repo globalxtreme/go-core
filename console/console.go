@@ -1,7 +1,7 @@
-package xtremepkg
+package xtremeconsole
 
 import (
-	"github.com/globalxtreme/go-core/command"
+	command2 "github.com/globalxtreme/go-core/console/command"
 	"github.com/go-co-op/gocron"
 	"github.com/spf13/cobra"
 	"time"
@@ -13,8 +13,8 @@ type BaseCommand interface {
 }
 
 func Commands(cobraCmd *cobra.Command, newCommands []BaseCommand) {
-	addCommand(cobraCmd, &command.DeleteLogFileCommand{})
-	addCommand(cobraCmd, &command.RabbitMQConsumeCommand{})
+	addCommand(cobraCmd, &command2.DeleteLogFileCommand{})
+	addCommand(cobraCmd, &command2.RabbitMQConsumeCommand{})
 
 	for _, newCommand := range newCommands {
 		addCommand(cobraCmd, newCommand)
@@ -29,7 +29,7 @@ func Schedules(callback func(*gocron.Scheduler)) {
 	sch := gocron.NewScheduler(time.UTC)
 
 	// Schedules
-	addSchedule(sch.Every(1).Day().At("00:01"), &command.DeleteLogFileCommand{})
+	addSchedule(sch.Every(1).Day().At("00:01"), &command2.DeleteLogFileCommand{})
 	callback(sch)
 
 	sch.StartBlocking()

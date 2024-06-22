@@ -1,6 +1,7 @@
-package xtremepkg
+package xtremecore
 
 import (
+	"github.com/globalxtreme/go-core/pkg"
 	"github.com/xuri/excelize/v2"
 	"log"
 	"strings"
@@ -135,12 +136,12 @@ func (ex *Excel) Save(path string, filename string) error {
 
 	var storagePath string
 	if ex.IsPublic {
-		storagePath = SetStorageAppPublicDir(path)
+		storagePath = xtremepkg.SetStorageAppPublicDir(path)
 	} else {
-		storagePath = SetStorageAppDir(path)
+		storagePath = xtremepkg.SetStorageAppDir(path)
 	}
 
-	CheckAndCreateDirectory(storagePath)
+	xtremepkg.CheckAndCreateDirectory(storagePath)
 
 	err := ex.File.SaveAs(storagePath + filename)
 	if err != nil {

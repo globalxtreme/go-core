@@ -1,8 +1,10 @@
 package middleware
 
 import (
-	"github.com/globalxtreme/go-core/response"
+	xtremepkg "github.com/globalxtreme/go-core/pkg"
+	xtremeres "github.com/globalxtreme/go-core/response"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -11,14 +13,19 @@ func PrepareRequestHandler(next http.Handler) http.Handler {
 		contentType := r.Header.Get("Content-Type")
 
 		if strings.Contains(contentType, "multipart/form-data") {
-			err := r.ParseMultipartForm(32 << 20)
+			maxPayload := 32
+			if maxPayloadENV := os.Getenv("MAX_PAYLOAD"); maxPayloadENV != "" {
+				maxPayload = xtremepkg.ToInt(maxPayloadENV)
+			}
+
+			err := r.ParseMultipartForm(int64(maxPayload << 20))
 			if err != nil {
-				response.ErrXtremePayloadVeryLarge("")
+				xtremeres.ErrXtremePayloadVeryLarge("")
 			}
 		} else if contentType == "application/json" || contentType == "application/x-www-form-urlencoded" {
 			err := r.ParseForm()
 			if err != nil {
-				response.ErrXtremeBadRequest("Unable to parse form!")
+				xtremeres.ErrXtremeBadRequest("Unable to parse form!")
 			}
 		}
 		next.ServeHTTP(w, r)
