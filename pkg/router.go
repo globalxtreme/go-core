@@ -1,4 +1,4 @@
-package xtremecore
+package xtremepkg
 
 import (
 	"github.com/globalxtreme/go-core/handler"

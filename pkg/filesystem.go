@@ -1,4 +1,4 @@
-package xtremecore
+package xtremepkg
 
 import (
 	"encoding/base64"

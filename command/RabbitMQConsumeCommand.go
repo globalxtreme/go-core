@@ -3,8 +3,8 @@ package command
 import (
 	"encoding/json"
 	"fmt"
-	xtremecore "github.com/globalxtreme/go-core"
 	"github.com/globalxtreme/go-core/model"
+	xtremepkg "github.com/globalxtreme/go-core/pkg"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/spf13/cobra"
 	"log"
@@ -28,7 +28,7 @@ func (class *RabbitMQConsumeCommand) Command(cmd *cobra.Command) {
 		Use:  "rabbitmq-consume",
 		Long: "RabbitMQ Consumer Command",
 		Run: func(cmd *cobra.Command, args []string) {
-			xtremecore.InitDevMode()
+			xtremepkg.InitDevMode()
 
 			class.Handle()
 		},
@@ -36,7 +36,7 @@ func (class *RabbitMQConsumeCommand) Command(cmd *cobra.Command) {
 }
 
 func (class *RabbitMQConsumeCommand) Handle() {
-	config := xtremecore.RabbitMQConf
+	config := xtremepkg.RabbitMQConf
 	connConf := config.Connection
 	exchange := config.Exchange
 
@@ -119,7 +119,7 @@ func processConsume(body []byte) {
 	var mqBody rabbitmqbody
 	err := json.Unmarshal(body, &mqBody)
 	if err != nil {
-		xtremecore.Error(fmt.Sprintf("Error unmarshalling: %s", err))
+		xtremepkg.Error(fmt.Sprintf("Error unmarshalling: %s", err))
 		return
 	}
 
@@ -127,7 +127,7 @@ func processConsume(body []byte) {
 
 	var queueMessage model.RabbitMQMessage
 
-	err = xtremecore.RabbitMQSQL.First(&queueMessage, mqBody.MessageId).Error
+	err = xtremepkg.RabbitMQSQL.First(&queueMessage, mqBody.MessageId).Error
 	if err != nil {
 		consumeInvalid(mqBody, fmt.Sprintf("Get message data: %s", err))
 		return
@@ -138,7 +138,7 @@ func processConsume(body []byte) {
 		return
 	}
 
-	consumer := xtremecore.RabbitMQConsumer{}.Get(mqBody.Key)
+	consumer := xtremepkg.RabbitMQConsumer{}.Get(mqBody.Key)
 	if consumer == nil {
 		consumeInvalid(mqBody, fmt.Sprintf("Your key does not exist: %s", err))
 		return
@@ -157,7 +157,7 @@ func processConsume(body []byte) {
 
 func updateMessageStatus(message model.RabbitMQMessage) {
 	statuses := message.Statuses
-	statuses[xtremecore.RabbitMQConf.Queue] = true
+	statuses[xtremepkg.RabbitMQConf.Queue] = true
 
 	finished := true
 	for _, status := range statuses {
@@ -170,27 +170,27 @@ func updateMessageStatus(message model.RabbitMQMessage) {
 	message.Statuses = statuses
 	message.Finished = finished
 
-	err := xtremecore.RabbitMQSQL.Save(&message).Error
+	err := xtremepkg.RabbitMQSQL.Save(&message).Error
 	if err != nil {
-		xtremecore.Error(fmt.Sprintf("Update message status invalid: %s", err))
+		xtremepkg.Error(fmt.Sprintf("Update message status invalid: %s", err))
 	}
 }
 
 func consumeInvalid(mqBody rabbitmqbody, message string) {
-	xtremecore.Error(message)
+	xtremepkg.Error(message)
 
 	payload, _ := json.Marshal(mqBody.Message)
 
 	var messageFailed model.RabbitMQMessageFailed
 	messageFailed.MessageId = mqBody.MessageId
 	messageFailed.Sender = mqBody.Queue
-	messageFailed.Consumer = xtremecore.RabbitMQConf.Queue
+	messageFailed.Consumer = xtremepkg.RabbitMQConf.Queue
 	messageFailed.Key = mqBody.Key
 	messageFailed.Payload = payload
 	messageFailed.Exception = map[string]interface{}{"message": message, "trace": ""}
 
-	err := xtremecore.RabbitMQSQL.Save(&messageFailed).Error
+	err := xtremepkg.RabbitMQSQL.Save(&messageFailed).Error
 	if err != nil {
-		xtremecore.Error(fmt.Sprintf("Save message failed invalid: %s", err))
+		xtremepkg.Error(fmt.Sprintf("Save message failed invalid: %s", err))
 	}
 }

@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	xtremecore "github.com/globalxtreme/go-core"
+	xtremepkg "github.com/globalxtreme/go-core/pkg"
 	"github.com/globalxtreme/go-core/response"
 	"github.com/go-playground/validator/v10"
 	"net/http"
@@ -13,7 +13,7 @@ import (
 type Validator struct{}
 
 func (v Validator) Make(r *http.Request, rules interface{}) {
-	err := xtremecore.XtremeValidate.Struct(rules)
+	err := xtremepkg.XtremeValidate.Struct(rules)
 	if err != nil {
 		var attributes []interface{}
 		for _, e := range err.(validator.ValidationErrors) {
@@ -36,13 +36,13 @@ func (v Validator) Make(r *http.Request, rules interface{}) {
 }
 
 func (v Validator) RegisterValidation(callback func(validate *validator.Validate)) {
-	xtremecore.XtremeValidate = validator.New()
+	xtremepkg.XtremeValidate = validator.New()
 
-	_ = xtremecore.XtremeValidate.RegisterValidation("date_ddmmyyyy", dateDDMMYYYYValidation)
-	_ = xtremecore.XtremeValidate.RegisterValidation("time_hhmm", dateHHMMValidation)
-	_ = xtremecore.XtremeValidate.RegisterValidation("time_hhmmss", dateHHMMSSValidation)
+	_ = xtremepkg.XtremeValidate.RegisterValidation("date_ddmmyyyy", dateDDMMYYYYValidation)
+	_ = xtremepkg.XtremeValidate.RegisterValidation("time_hhmm", dateHHMMValidation)
+	_ = xtremepkg.XtremeValidate.RegisterValidation("time_hhmmss", dateHHMMSSValidation)
 
-	callback(xtremecore.XtremeValidate)
+	callback(xtremepkg.XtremeValidate)
 }
 
 func getMessage(errMsg string) string {

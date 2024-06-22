@@ -3,7 +3,7 @@ package middleware
 import (
 	"encoding/json"
 	"fmt"
-	xtremecore "github.com/globalxtreme/go-core"
+	xtremepkg "github.com/globalxtreme/go-core/pkg"
 	"github.com/globalxtreme/go-core/response"
 	"log"
 	"net/http"
@@ -17,7 +17,7 @@ func PanicHandler(next http.Handler) http.Handler {
 				w.Header().Set("Content-Type", "application/json")
 
 				fmt.Fprintf(os.Stderr, "panic: %v\n", r)
-				xtremecore.Error(r)
+				xtremepkg.Error(r)
 
 				var res *response.ResponseError
 				if panicData, ok := r.(*response.ResponseError); ok {

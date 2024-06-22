@@ -2,7 +2,7 @@ package database
 
 import (
 	"fmt"
-	xtremecore "github.com/globalxtreme/go-core"
+	xtremepkg "github.com/globalxtreme/go-core/pkg"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -106,7 +106,7 @@ func mysqlConnection(conn DBConf) *gorm.DB {
 
 func setNewLogger() logger.Interface {
 	storageDir := os.Getenv("STORAGE_DIR") + "/logs"
-	xtremecore.CheckAndCreateDirectory(storageDir)
+	xtremepkg.CheckAndCreateDirectory(storageDir)
 
 	filename := time.Now().Format("2006-01-02") + ".log"
 	logFile, err := os.OpenFile(storageDir+"/"+filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
