@@ -3,7 +3,7 @@ package xtremefs
 import (
 	"encoding/base64"
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/globalxtreme/go-core/pkg"
+	"github.com/globalxtreme/go-core/v2/pkg"
 	"io"
 	"io/ioutil"
 	"net/http"

@@ -2,7 +2,7 @@ package xtremecore
 
 import (
 	"fmt"
-	"github.com/globalxtreme/go-core/pkg"
+	"github.com/globalxtreme/go-core/v2/pkg"
 	"gopkg.in/mail.v2"
 	"os"
 )

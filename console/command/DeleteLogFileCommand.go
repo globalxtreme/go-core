@@ -1,7 +1,7 @@
 package command
 
 import (
-	xtremepkg "github.com/globalxtreme/go-core/pkg"
+	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	"github.com/spf13/cobra"
 	"os"
 	"strconv"

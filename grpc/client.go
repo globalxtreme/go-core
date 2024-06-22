@@ -2,7 +2,7 @@ package xtremegrpc
 
 import (
 	"context"
-	"github.com/globalxtreme/go-core/pkg"
+	"github.com/globalxtreme/go-core/v2/pkg"
 	"google.golang.org/grpc"
 	"log"
 	"time"

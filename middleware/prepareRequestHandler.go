@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	xtremepkg "github.com/globalxtreme/go-core/pkg"
-	xtremeres "github.com/globalxtreme/go-core/response"
+	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
+	xtremeres "github.com/globalxtreme/go-core/v2/response"
 	"net/http"
 	"os"
 	"strings"

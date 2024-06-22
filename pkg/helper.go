@@ -1,7 +1,7 @@
 package xtremepkg
 
 import (
-	xtremeres "github.com/globalxtreme/go-core/response"
+	xtremeres "github.com/globalxtreme/go-core/v2/response"
 	"io"
 	"math/rand"
 	"mime/multipart"

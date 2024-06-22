@@ -1,7 +1,7 @@
 package handler
 
 import (
-	xtremefs "github.com/globalxtreme/go-core/filesystem"
+	xtremefs "github.com/globalxtreme/go-core/v2/filesystem"
 	"github.com/gorilla/mux"
 	"net/http"
 )

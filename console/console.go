@@ -1,7 +1,7 @@
 package xtremeconsole
 
 import (
-	command2 "github.com/globalxtreme/go-core/console/command"
+	command2 "github.com/globalxtreme/go-core/v2/console/command"
 	"github.com/go-co-op/gocron"
 	"github.com/spf13/cobra"
 	"time"

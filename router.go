@@ -1,8 +1,8 @@
 package xtremecore
 
 import (
-	"github.com/globalxtreme/go-core/handler"
-	"github.com/globalxtreme/go-core/middleware"
+	"github.com/globalxtreme/go-core/v2/handler"
+	"github.com/globalxtreme/go-core/v2/middleware"
 	"github.com/gorilla/mux"
 )
 

@@ -3,8 +3,8 @@ package middleware
 import (
 	"encoding/json"
 	"fmt"
-	xtremepkg "github.com/globalxtreme/go-core/pkg"
-	"github.com/globalxtreme/go-core/response"
+	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
+	"github.com/globalxtreme/go-core/v2/response"
 	"log"
 	"net/http"
 	"os"

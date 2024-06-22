@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	xtrememodel "github.com/globalxtreme/go-core/model"
+	xtrememodel "github.com/globalxtreme/go-core/v2/model"
 	"github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 	"log"

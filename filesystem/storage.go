@@ -1,7 +1,7 @@
 package xtremefs
 
 import (
-	"github.com/globalxtreme/go-core/pkg"
+	"github.com/globalxtreme/go-core/v2/pkg"
 	"github.com/gorilla/mux"
 	"net/http"
 	"os"

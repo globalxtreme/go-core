@@ -3,9 +3,9 @@ package command
 import (
 	"encoding/json"
 	"fmt"
-	model2 "github.com/globalxtreme/go-core/model"
-	xtremepkg "github.com/globalxtreme/go-core/pkg"
-	xtremerabbitmq "github.com/globalxtreme/go-core/rabbitmq"
+	model2 "github.com/globalxtreme/go-core/v2/model"
+	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
+	xtremerabbitmq "github.com/globalxtreme/go-core/v2/rabbitmq"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/spf13/cobra"
 	"log"
