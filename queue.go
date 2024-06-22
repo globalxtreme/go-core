@@ -1,0 +1,83 @@
+package xtremecore
+
+import (
+	"fmt"
+	"github.com/gocraft/work"
+	"github.com/gomodule/redigo/redis"
+	"gorm.io/gorm/utils"
+	"log"
+	"os"
+	"os/signal"
+	"strings"
+	"time"
+)
+
+type JobConf struct {
+	Context     interface{}
+	JobFunc     interface{}
+	QueueName   string
+	JobName     string
+	Priority    uint
+	Concurrency uint
+}
+
+func RegisterRedis() {
+	RedisPool = &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")))
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+	}
+}
+
+type Queue struct {
+	Names string
+}
+
+func (q Queue) Work(workers []JobConf) {
+	var names []string
+
+	if len(q.Names) > 0 {
+		q.Names = strings.ReplaceAll(q.Names, " ", "")
+		names = strings.Split(q.Names, ",")
+	}
+
+	RegisterRedis()
+
+	var pools []*work.WorkerPool
+
+	for _, worker := range workers {
+		if len(names) > 0 {
+			if !utils.Contains(names, worker.QueueName) {
+				continue
+			}
+		}
+
+		pool := work.NewWorkerPool(worker.Context, worker.Concurrency, worker.QueueName, RedisPool)
+		pool.JobWithOptions(worker.JobName, work.JobOptions{
+			Priority: worker.Priority,
+		}, worker.JobFunc)
+
+		pool.Start()
+
+		pools = append(pools, pool)
+
+		log.Println(fmt.Sprintf("%s:%s", worker.QueueName, worker.JobName))
+	}
+
+	// Wait for a signal to quit:
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, os.Kill)
+	<-signalChan
+
+	for _, pool := range pools {
+		pool.Stop()
+	}
+
+	fmt.Println("All worker is done!")
+}
