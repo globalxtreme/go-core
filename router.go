@@ -9,8 +9,8 @@ import (
 type CallbackRouter func(*mux.Router)
 
 func RegisterRouter(router *mux.Router, callback CallbackRouter) {
-	router.Use(middleware.PanicHandler)
-	router.Use(middleware.PrepareRequestHandler)
+	router.Use(xtrememdw.PanicHandler)
+	router.Use(xtrememdw.PrepareRequestHandler)
 
 	// Storage route
 	stHandler := handler.BaseStorageHandler{}
