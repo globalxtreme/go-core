@@ -17,7 +17,7 @@ func PanicHandler(next http.Handler) http.Handler {
 				w.Header().Set("Content-Type", "application/json")
 
 				fmt.Fprintf(os.Stderr, "panic: %v\n", r)
-				xtremepkg.Error(r)
+				xtremepkg.LogError(r)
 
 				var res *xtremeres.ResponseError
 				if panicData, ok := r.(*xtremeres.ResponseError); ok {

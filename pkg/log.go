@@ -8,22 +8,22 @@ import (
 	"time"
 )
 
-func Info(content any) {
-	setOutput("INFO", content)
+func LogInfo(content any) {
+	setLogOutput("INFO", content)
 }
 
-func Error(content any) {
+func LogError(content any) {
 	debug.PrintStack()
 
-	setOutput("ERROR", fmt.Sprintf("panic: %v", content))
-	setOutput("ERROR", string(debug.Stack()))
+	setLogOutput("ERROR", fmt.Sprintf("panic: %v", content))
+	setLogOutput("ERROR", string(debug.Stack()))
 }
 
-func Debug(content any) {
-	setOutput("DEBUG", content)
+func LogDebug(content any) {
+	setLogOutput("DEBUG", content)
 }
 
-func setOutput(action string, error any) {
+func setLogOutput(action string, error any) {
 	storageDir := os.Getenv("STORAGE_DIR") + "/logs"
 	CheckAndCreateDirectory(storageDir)
 
