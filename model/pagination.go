@@ -7,6 +7,7 @@ import (
 )
 
 type Pagination struct {
+	Total        int
 	Count        int
 	CurrentPage  any
 	LinkPrevious int
@@ -17,6 +18,7 @@ type Pagination struct {
 
 func (p Pagination) ParsePagination() map[string]interface{} {
 	return map[string]interface{}{
+		"total":       p.Total,
 		"count":       p.Count,
 		"currentPage": p.CurrentPage,
 		"perPage":     p.PerPage,
@@ -28,9 +30,11 @@ func (p Pagination) ParsePagination() map[string]interface{} {
 	}
 }
 
-func Paginate(parameters url.Values, query *gorm.DB, model interface{}) (*gorm.DB, Pagination) {
-	var count int64
-	query.Model(&model).Count(&count)
+func Paginate[M any](query *gorm.DB, parameters url.Values, model M) ([]M, interface{}, error) {
+	var data []M
+
+	var total int64
+	query.Model(&model).Count(&total)
 
 	page, _ := strconv.Atoi(parameters.Get("page"))
 	if page == 0 {
@@ -43,13 +47,17 @@ func Paginate(parameters url.Values, query *gorm.DB, model interface{}) (*gorm.D
 	}
 
 	offset := (page - 1) * limit
-	query = query.Limit(limit).Offset(offset)
+	res := query.Limit(limit).Offset(offset).Find(&data)
+	if res.Error != nil {
+		return nil, nil, res.Error
+	}
 
 	dataPagination := Pagination{
-		Count:       int(count),
+		Total:       int(total),
+		Count:       int(res.RowsAffected),
 		PerPage:     limit,
 		CurrentPage: page,
-		TotalPage:   (int(count) / limit) + 1,
+		TotalPage:   (int(total) / limit) + 1,
 	}
 
 	if page < dataPagination.TotalPage {
@@ -60,5 +68,5 @@ func Paginate(parameters url.Values, query *gorm.DB, model interface{}) (*gorm.D
 		dataPagination.LinkPrevious = page - 1
 	}
 
-	return query, dataPagination
+	return data, dataPagination.ParsePagination(), nil
 }
