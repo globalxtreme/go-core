@@ -38,3 +38,7 @@ func ErrXtremeNotFound(internalMsg string) {
 func ErrXtremeUploadFile(internalMsg string) {
 	Error(http.StatusInternalServerError, "Unable to upload file", internalMsg, nil)
 }
+
+func ErrXtremeUUID(internalMsg string) {
+	Error(http.StatusInternalServerError, "Unable to generate uuid", internalMsg, nil)
+}

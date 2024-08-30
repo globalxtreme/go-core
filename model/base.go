@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	xtremeres "github.com/globalxtreme/go-core/v2/response"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"os"
 	"time"
 )
 
@@ -66,12 +66,17 @@ func (m *BaseModel) BeforeUpdate(tx *gorm.DB) error {
 
 func (m *BaseModel) setID() {
 	if len(m.ID) == 0 {
-		uniqueId := os.Getenv("UNIQUE_ID")
-		if len(uniqueId) == 0 {
-			uniqueId = "127001"
+		//uniqueId := os.Getenv("UNIQUE_ID")
+		//if len(uniqueId) == 0 {
+		//	uniqueId = "127001"
+		//}
+
+		uuid7, err := uuid.NewV7()
+		if err != nil {
+			xtremeres.ErrXtremeUUID(err.Error())
 		}
 
-		m.ID = fmt.Sprintf("%s-%s", uniqueId, uuid.New().String())
+		m.ID = uuid7.String()
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 
 type GRPCServer struct {
 	listener net.Listener
-	server   *grpc.Server
+	Server   *grpc.Server
 }
 
 type GRPCServerRegister interface {
@@ -23,19 +23,19 @@ func (srv *GRPCServer) NewServer(address string) *GRPCServer {
 	s := grpc.NewServer()
 
 	srv.listener = lis
-	srv.server = s
+	srv.Server = s
 
 	return srv
 }
 
 func (srv *GRPCServer) Register(interfaces ...GRPCServerRegister) *GRPCServer {
 	for _, itf := range interfaces {
-		itf.Register(srv.server)
+		itf.Register(srv.Server)
 	}
 
 	return srv
 }
 
 func (srv *GRPCServer) Serve() error {
-	return srv.server.Serve(srv.listener)
+	return srv.Server.Serve(srv.listener)
 }
