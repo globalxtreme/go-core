@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -65,24 +66,42 @@ func SetStorageAppPublicDir(path ...string) string {
 }
 
 func StringToArrayInt(text string) []int {
-	var array []int
-	texts := strings.Split(text, ",")
-	for _, value := range texts {
-		item, _ := strconv.Atoi(value)
-		array = append(array, item)
+	re := regexp.MustCompile(`[^0-9\-.]`)
+	text = re.ReplaceAllString(text, " ")
+
+	re = regexp.MustCompile(`\s+`)
+	text = re.ReplaceAllString(text, " ")
+
+	words := strings.Split(text, " ")
+
+	var result []int
+	for _, word := range words {
+		if word != "" {
+			number, _ := strconv.Atoi(word)
+			result = append(result, number)
+		}
 	}
 
-	return array
+	return result
 }
 
 func StringToArrayString(text string) []string {
-	var array []string
-	texts := strings.Split(text, ",")
-	for _, value := range texts {
-		array = append(array, value)
+	re := regexp.MustCompile(`[^A-Za-z0-9\-.]`)
+	text = re.ReplaceAllString(text, " ")
+
+	re = regexp.MustCompile(`\s+`)
+	text = re.ReplaceAllString(text, " ")
+
+	words := strings.Split(text, " ")
+
+	var result []string
+	for _, word := range words {
+		if word != "" {
+			result = append(result, word)
+		}
 	}
 
-	return array
+	return result
 }
 
 func GetMimeType(file multipart.File, handler *multipart.FileHeader, mimeType *string) string {
