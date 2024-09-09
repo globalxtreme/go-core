@@ -1,7 +1,10 @@
 package xtremepkg
 
 import (
+	"encoding/json"
 	"fmt"
+	xtremeclient "github.com/globalxtreme/go-core/v2/grpc/client"
+	"github.com/globalxtreme/go-core/v2/pkg/grpc/bug"
 	"log"
 	"os"
 	"runtime/debug"
@@ -9,18 +12,50 @@ import (
 )
 
 func LogInfo(content any) {
-	setLogOutput("INFO", content)
+	logType := "INFO"
+	if xtremeclient.BugRPCActive {
+		message, _ := json.Marshal(content)
+
+		xtremeclient.BugLog(&bug.LogRequest{
+			Service: os.Getenv("SERVICE"),
+			Type:    logType,
+			Message: message,
+		})
+	} else {
+		setLogOutput(logType, content)
+	}
 }
 
 func LogError(content any) {
 	debug.PrintStack()
 
-	setLogOutput("ERROR", fmt.Sprintf("panic: %v", content))
-	setLogOutput("ERROR", string(debug.Stack()))
+	logType := "ERROR"
+	if xtremeclient.BugRPCActive {
+		xtremeclient.BugLog(&bug.LogRequest{
+			Service: os.Getenv("SERVICE"),
+			Type:    logType,
+			Title:   fmt.Sprintf("panic: %v", content),
+			Message: debug.Stack(),
+		})
+	} else {
+		setLogOutput("ERROR", fmt.Sprintf("panic: %v", content))
+		setLogOutput("ERROR", string(debug.Stack()))
+	}
 }
 
 func LogDebug(content any) {
-	setLogOutput("DEBUG", content)
+	logType := "DEBUG"
+	if xtremeclient.BugRPCActive {
+		message, _ := json.Marshal(content)
+
+		xtremeclient.BugLog(&bug.LogRequest{
+			Service: os.Getenv("SERVICE"),
+			Type:    logType,
+			Message: message,
+		})
+	} else {
+		setLogOutput("DEBUG", content)
+	}
 }
 
 func setLogOutput(action string, error any) {
