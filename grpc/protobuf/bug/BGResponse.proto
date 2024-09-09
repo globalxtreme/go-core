@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package bug;
+
+option go_package = "pkg/grpc/bug";
+
+message BGResponse {
+  string message = 1;
+  bytes result = 2;
+}
