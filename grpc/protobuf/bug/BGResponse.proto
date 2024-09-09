@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package bug;
 
-option go_package = "pkg/grpc/bug";
+option go_package = "grpc/pkg/bug";
 
 message BGResponse {
   string message = 1;

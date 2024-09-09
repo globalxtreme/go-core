@@ -1,10 +1,10 @@
 package xtremepkg
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	xtremeclient "github.com/globalxtreme/go-core/v2/grpc/client"
-	"github.com/globalxtreme/go-core/v2/pkg/grpc/bug"
+	"github.com/globalxtreme/go-core/v2/grpc/pkg/bug"
 	"log"
 	"os"
 	"runtime/debug"
@@ -13,10 +13,10 @@ import (
 
 func LogInfo(content any) {
 	logType := "INFO"
-	if xtremeclient.BugRPCActive {
+	if BugRPCActive {
 		message, _ := json.Marshal(content)
 
-		xtremeclient.BugLog(&bug.LogRequest{
+		SendBugLog(&bug.LogRequest{
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
 			Message: message,
@@ -30,8 +30,8 @@ func LogError(content any) {
 	debug.PrintStack()
 
 	logType := "ERROR"
-	if xtremeclient.BugRPCActive {
-		xtremeclient.BugLog(&bug.LogRequest{
+	if BugRPCActive {
+		SendBugLog(&bug.LogRequest{
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
 			Title:   fmt.Sprintf("panic: %v", content),
@@ -45,10 +45,10 @@ func LogError(content any) {
 
 func LogDebug(content any) {
 	logType := "DEBUG"
-	if xtremeclient.BugRPCActive {
+	if BugRPCActive {
 		message, _ := json.Marshal(content)
 
-		xtremeclient.BugLog(&bug.LogRequest{
+		SendBugLog(&bug.LogRequest{
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
 			Message: message,
@@ -56,6 +56,13 @@ func LogDebug(content any) {
 	} else {
 		setLogOutput("DEBUG", content)
 	}
+}
+
+func SendBugLog(req *bug.LogRequest) (*bug.BGResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), BugRPCTimeout)
+	defer cancel()
+
+	return BugRPCClient.Log(ctx, req)
 }
 
 func setLogOutput(action string, error any) {
