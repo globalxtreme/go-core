@@ -15,7 +15,7 @@ import (
 /* --- BASE MODEL CONFIGURATION --- */
 
 type BaseModel struct {
-	ID        string         `gorm:"type:varchar(45);primarykey"`
+	ID        uint           `gorm:"primarykey"`
 	Timezone  string         `gorm:"column:timezone;type:varchar(50)"`
 	CreatedAt time.Time      `gorm:"column:createdAt;type:timestamp"`
 	UpdatedAt time.Time      `gorm:"column:updatedAt;type:timestamp"`
@@ -23,8 +23,6 @@ type BaseModel struct {
 }
 
 func (m *BaseModel) BeforeCreate(tx *gorm.DB) error {
-	m.setID()
-
 	if m.CreatedAt == (time.Time{}) {
 		m.CreatedAt = time.Now()
 	}
@@ -64,19 +62,67 @@ func (m *BaseModel) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-func (m *BaseModel) setID() {
-	if len(m.ID) == 0 {
-		//uniqueId := os.Getenv("UNIQUE_ID")
-		//if len(uniqueId) == 0 {
-		//	uniqueId = "127001"
-		//}
+/* --- BASE MODEL CONFIGURATION --- */
 
+type BaseModelUUID struct {
+	ID        uint           `gorm:"primarykey"`
+	UUID      string         `gorm:"column:uuid;type:varchar(45);index"`
+	Timezone  string         `gorm:"column:timezone;type:varchar(50)"`
+	CreatedAt time.Time      `gorm:"column:createdAt;type:timestamp"`
+	UpdatedAt time.Time      `gorm:"column:updatedAt;type:timestamp"`
+	DeletedAt gorm.DeletedAt `gorm:"column:deletedAt;index"`
+}
+
+func (m *BaseModelUUID) BeforeCreate(tx *gorm.DB) error {
+	m.setUUID()
+
+	if m.CreatedAt == (time.Time{}) {
+		m.CreatedAt = time.Now()
+	}
+
+	if m.UpdatedAt == (time.Time{}) {
+		m.UpdatedAt = time.Now()
+	}
+
+	if len(m.Timezone) == 0 {
+		m.Timezone = m.CreatedAt.Location().String()
+	}
+
+	return nil
+}
+
+func (m *BaseModelUUID) BeforeSave(tx *gorm.DB) error {
+	if m.CreatedAt == (time.Time{}) {
+		m.CreatedAt = time.Now()
+	}
+
+	if m.UpdatedAt == (time.Time{}) {
+		m.UpdatedAt = time.Now()
+	}
+
+	if len(m.Timezone) == 0 {
+		m.Timezone = m.CreatedAt.Location().String()
+	}
+
+	return nil
+}
+
+func (m *BaseModelUUID) BeforeUpdate(tx *gorm.DB) error {
+	if m.UpdatedAt == (time.Time{}) {
+		m.UpdatedAt = time.Now()
+	}
+
+	return nil
+}
+
+func (m *BaseModelUUID) setUUID() {
+	if len(m.UUID) == 0 {
 		uuid7, err := uuid.NewV7()
 		if err != nil {
 			xtremeres.ErrXtremeUUID(err.Error())
 		}
 
-		m.ID = uuid7.String()
+		m.UUID = uuid7.String()
 	}
 }
 
