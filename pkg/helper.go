@@ -137,6 +137,52 @@ func CountFunc[S ~[]E, E any](data S, count *int, cb func(E) bool) {
 	}
 }
 
+func ArrayDiff[TD comparable](arr1, arr2 []TD) []TD {
+	elMap := make(map[TD]bool)
+	for _, val := range arr2 {
+		elMap[val] = true
+	}
+
+	var res []TD
+	for _, val := range arr1 {
+		if !elMap[val] {
+			res = append(res, val)
+		}
+	}
+
+	return res
+}
+
+func ArrayUdiff[TD comparable](arr1, arr2 []TD) []TD {
+	elMap := make(map[TD]bool)
+	for _, val := range arr1 {
+		elMap[val] = true
+	}
+
+	var res []TD
+	for _, val := range arr2 {
+		if elMap[val] {
+			res = append(res, val)
+		}
+	}
+
+	return res
+}
+
+func ArrayUnique[TD comparable](strings []TD) []TD {
+	seen := make(map[TD]bool)
+	var result []TD
+
+	for _, str := range strings {
+		if !seen[str] {
+			result = append(result, str)
+			seen[str] = true
+		}
+	}
+
+	return result
+}
+
 func ToInt(text string) int {
 	value, _ := strconv.Atoi(text)
 	return value
