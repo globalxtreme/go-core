@@ -158,7 +158,7 @@ func Migrate(conn *gorm.DB, migrations []Migration) {
 			log.Panicf("Could not save reference to migrations. %v", err)
 		}
 
-		fmt.Printf("%-23s %s", time.Now().Format("2006-01-02 15:04:05"), mgr.Reference())
+		fmt.Printf("%-23s %s\n", time.Now().Format("2006-01-02 15:04:05"), mgr.Reference())
 	}
 }
 
