@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm/schema"
 	"log"
 	"os"
+	"time"
 )
 
 type Migration interface {
@@ -47,6 +48,11 @@ func Migrate(conn *gorm.DB, migrations []Migration) {
 	checkAndSetMigrationTable(conn)
 
 	for _, mgr := range migrations {
+		var countReference int64
+		conn.Model(&xtrememodel.Migration{}).Where("reference = ?", mgr.Reference()).Count(&countReference)
+		if countReference > 0 {
+			continue
+		}
 
 		for _, table := range mgr.Tables() {
 			if len(table.Collate) > 0 {
@@ -147,6 +153,12 @@ func Migrate(conn *gorm.DB, migrations []Migration) {
 			}
 		}
 
+		err = conn.Create(&xtrememodel.Migration{Reference: mgr.Reference()}).Error
+		if err != nil {
+			log.Panicf("Could not save reference to migrations. %v", err)
+		}
+
+		fmt.Printf("%-23s %s", time.Now().Format("2006-01-02 15:04:05"), mgr.Reference())
 	}
 }
 
