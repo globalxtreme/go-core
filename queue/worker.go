@@ -2,6 +2,7 @@ package xtremequeue
 
 import (
 	"fmt"
+	"github.com/globalxtreme/go-core/v2/pkg"
 	"github.com/gocraft/work"
 	"gorm.io/gorm/utils"
 	"log"
@@ -31,7 +32,7 @@ func (q Queue) Work(workers []JobConf) {
 		names = strings.Split(q.Names, ",")
 	}
 
-	RegisterRedis()
+	xtremepkg.InitRedisPool()
 
 	var pools []*work.WorkerPool
 
@@ -42,7 +43,7 @@ func (q Queue) Work(workers []JobConf) {
 			}
 		}
 
-		pool := work.NewWorkerPool(worker.Context, worker.Concurrency, worker.QueueName, RedisPool)
+		pool := work.NewWorkerPool(worker.Context, worker.Concurrency, worker.QueueName, xtremepkg.RedisPool)
 		pool.JobWithOptions(worker.JobName, work.JobOptions{
 			Priority: worker.Priority,
 		}, worker.JobFunc)
