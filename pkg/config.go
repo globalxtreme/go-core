@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/globalxtreme/go-core/v2/grpc/pkg/bug"
 	"github.com/go-playground/validator/v10"
+	"github.com/gomodule/redigo/redis"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -38,6 +39,9 @@ var (
 
 	// BugRPCActive --> Bug service gRPC status active or inactive
 	BugRPCActive bool
+
+	// RedisPool --> Redis pool for open connection
+	RedisPool *redis.Pool
 )
 
 func InitHost() {
@@ -105,4 +109,19 @@ func InitBugRPC() func() {
 	}
 
 	return func() {}
+}
+
+func InitRedisPool() {
+	RedisPool = &redis.Pool{
+		MaxIdle:     100,
+		MaxActive:   500,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", fmt.Sprintf("%s:%s", os.Getenv("REDIS_HOST"), os.Getenv("REDIS_PORT")))
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		},
+	}
 }
