@@ -121,7 +121,15 @@ func InitRedisPool() {
 			if err != nil {
 				return nil, err
 			}
-			return c, err
+
+			if os.Getenv("REDIS_PASSWORD") != "" {
+				if _, err = c.Do("AUTH", os.Getenv("REDIS_PASSWORD")); err != nil {
+					c.Close()
+					return nil, err
+				}
+			}
+
+			return c, nil
 		},
 	}
 }
