@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package bug;
 
-option go_package = "grpc/pkg/bug";
+option go_package = "grpc/pkg/log";
 
-message BGResponse {
+message LGResponse {
   string message = 1;
   bytes result = 2;
 }

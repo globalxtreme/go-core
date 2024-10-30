@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package bug;
+
+option go_package = "grpc/pkg/log";
+
+import "LGResponse.proto";
+
+service LogService {
+  rpc Log(LogRequest) returns (LGResponse) {}
+}
+
+message LogRequest {
+  string type = 1;
+  string service = 2;
+  string message = 3;
+  bytes detail = 4;
+}

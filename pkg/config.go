@@ -3,7 +3,7 @@ package xtremepkg
 import (
 	"context"
 	"fmt"
-	"github.com/globalxtreme/go-core/v2/grpc/pkg/bug"
+	log2 "github.com/globalxtreme/go-core/v2/grpc/pkg/log"
 	"github.com/go-playground/validator/v10"
 	"github.com/gomodule/redigo/redis"
 	"github.com/joho/godotenv"
@@ -32,7 +32,7 @@ var (
 	XtremeValidate *validator.Validate
 
 	// BugRPCClient --> Bug service gRPC client
-	BugRPCClient bug.BugServiceClient
+	BugRPCClient log2.LogServiceClient
 
 	// BugRPCTimeout --> Bug service gRPC timeout while send log
 	BugRPCTimeout time.Duration
@@ -92,7 +92,7 @@ func InitBugRPC() func() {
 			log.Panicf("Did not connect to %s: %v", addr, err)
 		}
 
-		BugRPCClient = bug.NewBugServiceClient(conn)
+		BugRPCClient = log2.NewLogServiceClient(conn)
 		BugRPCActive = true
 
 		BugRPCTimeout = 5 * time.Second
