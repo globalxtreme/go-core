@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package bug;
+package log;
 
 option go_package = "grpc/pkg/log";
 
@@ -14,5 +14,7 @@ message LogRequest {
   string type = 1;
   string service = 2;
   string message = 3;
-  bytes detail = 4;
+  bytes stack = 4;
+  string dateTime = 5;
+  bool bug = 6;
 }

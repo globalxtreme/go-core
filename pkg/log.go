@@ -26,7 +26,7 @@ func LogInfo(content any) {
 	}
 }
 
-func LogError(content any) {
+func LogError(content any, bug bool) {
 	debug.PrintStack()
 
 	logType := "ERROR"
@@ -35,7 +35,8 @@ func LogError(content any) {
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
 			Message: fmt.Sprintf("panic: %v", content),
-			Detail:  debug.Stack(),
+			Stack:   debug.Stack(),
+			Bug:     bug,
 		})
 	} else {
 		setLogOutput(logType, fmt.Sprintf("panic: %v", content))

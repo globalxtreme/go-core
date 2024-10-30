@@ -16,20 +16,23 @@ func PanicHandler(next http.Handler) http.Handler {
 			if r := recover(); r != nil {
 				w.Header().Set("Content-Type", "application/json")
 
-				fmt.Fprintf(os.Stderr, "panic: %v\n", r)
-				xtremepkg.LogError(r)
-
 				var res *xtremeres.ResponseError
 				if panicData, ok := r.(*xtremeres.ResponseError); ok {
 					res = panicData
 				} else {
 					res = &xtremeres.ResponseError{
-						Status: xtremeres.Status{
-							Code:    http.StatusInternalServerError,
-							Message: "An error Occurred.",
+						Status: xtremeres.StatusError{
+							Bug: true,
+							Status: xtremeres.Status{
+								Code:    http.StatusInternalServerError,
+								Message: "An error Occurred.",
+							},
 						},
 					}
 				}
+
+				fmt.Fprintf(os.Stderr, "panic: %v\n", r)
+				xtremepkg.LogError(r, res.Status.Bug)
 
 				w.WriteHeader(res.Status.Code)
 
