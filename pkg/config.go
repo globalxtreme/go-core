@@ -31,14 +31,14 @@ var (
 	// XtremeValidate --> Validation configuration
 	XtremeValidate *validator.Validate
 
-	// BugRPCClient --> Bug service gRPC client
-	BugRPCClient log2.LogServiceClient
+	// LogRPCClient --> Log service gRPC client
+	LogRPCClient log2.LogServiceClient
 
-	// BugRPCTimeout --> Bug service gRPC timeout while send log
-	BugRPCTimeout time.Duration
+	// LogRPCTimeout --> Log service gRPC timeout while send log
+	LogRPCTimeout time.Duration
 
-	// BugRPCActive --> Bug service gRPC status active or inactive
-	BugRPCActive bool
+	// LogRPCActive --> Log service gRPC status active or inactive
+	LogRPCActive bool
 
 	// RedisPool --> Redis pool for open connection
 	RedisPool *redis.Pool
@@ -72,8 +72,8 @@ func InitDevMode() {
 	}
 }
 
-func InitBugRPC() func() {
-	addr := os.Getenv("GRPC_BUG_HOST")
+func InitLogRPC() func() {
+	addr := os.Getenv("GRPC_LOG_HOST")
 	if !DevMode && addr != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
@@ -92,12 +92,12 @@ func InitBugRPC() func() {
 			log.Panicf("Did not connect to %s: %v", addr, err)
 		}
 
-		BugRPCClient = log2.NewLogServiceClient(conn)
-		BugRPCActive = true
+		LogRPCClient = log2.NewLogServiceClient(conn)
+		LogRPCActive = true
 
-		BugRPCTimeout = 5 * time.Second
-		if bugTimeoutENV := os.Getenv("GRPC_BUG_TIMEOUT"); bugTimeoutENV != "" {
-			BugRPCTimeout = time.Duration(ToInt(bugTimeoutENV)) * time.Second
+		LogRPCTimeout = 5 * time.Second
+		if bugTimeoutENV := os.Getenv("GRPC_LOG_TIMEOUT"); bugTimeoutENV != "" {
+			LogRPCTimeout = time.Duration(ToInt(bugTimeoutENV)) * time.Second
 		}
 
 		cleanup := func() {

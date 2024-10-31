@@ -59,7 +59,7 @@ func postgresqlConnection(conn DBConf) *gorm.DB {
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=%s",
 		conn.Host, conn.Username, conn.Password, conn.Database, conn.Port, conn.TimeZone)
-	driver, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: setNewLogger()})
+	driver, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: setNewLogger(conn.Driver)})
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +96,7 @@ func mysqlConnection(conn DBConf) *gorm.DB {
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s%s",
 		conn.Username, conn.Password, conn.Host, conn.Port, conn.Database, option)
-	driver, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: setNewLogger()})
+	driver, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: setNewLogger(conn.Driver)})
 	if err != nil {
 		panic(err)
 	}
@@ -104,11 +104,11 @@ func mysqlConnection(conn DBConf) *gorm.DB {
 	return driver
 }
 
-func setNewLogger() logger.Interface {
+func setNewLogger(driver string) logger.Interface {
 	storageDir := os.Getenv("STORAGE_DIR") + "/logs"
 	xtremepkg.CheckAndCreateDirectory(storageDir)
 
-	filename := time.Now().Format("2006-01-02") + ".log"
+	filename := fmt.Sprintf("%s-%s.log", driver, time.Now().Format("2006-01-02"))
 	logFile, err := os.OpenFile(storageDir+"/"+filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)

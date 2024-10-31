@@ -13,7 +13,7 @@ import (
 
 func LogInfo(content any) {
 	logType := "INFO"
-	if BugRPCActive {
+	if LogRPCActive {
 		message, _ := json.Marshal(content)
 
 		SendBugLog(&log2.LogRequest{
@@ -30,7 +30,7 @@ func LogError(content any, bug bool) {
 	debug.PrintStack()
 
 	logType := "ERROR"
-	if BugRPCActive {
+	if LogRPCActive {
 		SendBugLog(&log2.LogRequest{
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
@@ -46,7 +46,7 @@ func LogError(content any, bug bool) {
 
 func LogDebug(content any) {
 	logType := "DEBUG"
-	if BugRPCActive {
+	if LogRPCActive {
 		message, _ := json.Marshal(content)
 
 		SendBugLog(&log2.LogRequest{
@@ -60,10 +60,10 @@ func LogDebug(content any) {
 }
 
 func SendBugLog(req *log2.LogRequest) (*log2.LGResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), BugRPCTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), LogRPCTimeout)
 	defer cancel()
 
-	return BugRPCClient.Log(ctx, req)
+	return LogRPCClient.Log(ctx, req)
 }
 
 func setLogOutput(action string, error any) {
