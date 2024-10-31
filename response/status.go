@@ -12,7 +12,12 @@ type ResponseSuccessWithPagination struct {
 }
 
 type ResponseError struct {
-	Status Status `json:"status"`
+	Status StatusError `json:"status"`
+}
+
+type StatusError struct {
+	Status
+	Bug bool `json:"bug"`
 }
 
 type Status struct {

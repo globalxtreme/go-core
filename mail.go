@@ -34,7 +34,7 @@ func (m *Mail) Send(msg MailMessage) error {
 	content.SetHeader("From", content.FormatAddress(os.Getenv("MAIL_FROM_ADDRESS"), os.Getenv("MAIL_FROM_NAME")))
 
 	if err := m.dialer.DialAndSend(content); err != nil {
-		xtremepkg.LogError(fmt.Sprintf("Error sending email: %v", err))
+		xtremepkg.LogError(fmt.Sprintf("Error sending email: %v", err), true)
 		return err
 	}
 

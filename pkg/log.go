@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/globalxtreme/go-core/v2/grpc/pkg/bug"
+	log2 "github.com/globalxtreme/go-core/v2/grpc/pkg/log"
 	"log"
 	"os"
 	"runtime/debug"
@@ -13,56 +13,57 @@ import (
 
 func LogInfo(content any) {
 	logType := "INFO"
-	if BugRPCActive {
+	if LogRPCActive {
 		message, _ := json.Marshal(content)
 
-		SendBugLog(&bug.LogRequest{
+		SendBugLog(&log2.LogRequest{
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
-			Message: message,
+			Message: string(message),
 		})
 	} else {
 		setLogOutput(logType, content)
 	}
 }
 
-func LogError(content any) {
+func LogError(content any, bug bool) {
 	debug.PrintStack()
 
 	logType := "ERROR"
-	if BugRPCActive {
-		SendBugLog(&bug.LogRequest{
+	if LogRPCActive {
+		SendBugLog(&log2.LogRequest{
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
-			Title:   fmt.Sprintf("panic: %v", content),
-			Message: debug.Stack(),
+			Message: fmt.Sprintf("panic: %v", content),
+			Stack:   debug.Stack(),
+			Bug:     bug,
 		})
 	} else {
-		setLogOutput("ERROR", fmt.Sprintf("panic: %v", content))
-		setLogOutput("ERROR", string(debug.Stack()))
+		setLogOutput(logType, fmt.Sprintf("panic: %v", content))
+		setLogOutput(logType, string(debug.Stack()))
 	}
 }
 
 func LogDebug(content any) {
 	logType := "DEBUG"
-	if BugRPCActive {
+	if LogRPCActive {
 		message, _ := json.Marshal(content)
 
-		SendBugLog(&bug.LogRequest{
+		SendBugLog(&log2.LogRequest{
 			Service: os.Getenv("SERVICE"),
 			Type:    logType,
-			Message: message,
+			Message: string(message),
 		})
 	} else {
-		setLogOutput("DEBUG", content)
+		setLogOutput(logType, content)
 	}
 }
 
-func SendBugLog(req *bug.LogRequest) (*bug.BGResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), BugRPCTimeout)
+func SendBugLog(req *log2.LogRequest) (*log2.LGResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), LogRPCTimeout)
 	defer cancel()
 
-	return BugRPCClient.Log(ctx, req)
+	return LogRPCClient.Log(ctx, req)
 }
 
 func setLogOutput(action string, error any) {

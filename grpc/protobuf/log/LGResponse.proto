@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package log;
+
+option go_package = "grpc/pkg/log";
+
+message LGResponse {
+  string message = 1;
+  bytes result = 2;
+}

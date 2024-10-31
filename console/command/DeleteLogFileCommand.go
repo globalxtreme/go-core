@@ -39,7 +39,7 @@ func (command *DeleteLogFileCommand) Handle() {
 	if err == nil {
 		err := os.Remove(fullPath)
 		if err != nil {
-			xtremepkg.LogError(err)
+			xtremepkg.LogError(err, false)
 		}
 	}
 }

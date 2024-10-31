@@ -120,7 +120,7 @@ func processConsume(body []byte) {
 	var mqBody rabbitmqbody
 	err := json.Unmarshal(body, &mqBody)
 	if err != nil {
-		xtremepkg.LogError(fmt.Sprintf("Error unmarshalling: %s", err))
+		xtremepkg.LogError(fmt.Sprintf("Error unmarshalling: %s", err), true)
 		return
 	}
 
@@ -173,12 +173,12 @@ func updateMessageStatus(message model2.RabbitMQMessage) {
 
 	err := xtremerabbitmq.RabbitMQSQL.Save(&message).Error
 	if err != nil {
-		xtremepkg.LogError(fmt.Sprintf("Update message status invalid: %s", err))
+		xtremepkg.LogError(fmt.Sprintf("Update message status invalid: %s", err), false)
 	}
 }
 
 func consumeInvalid(mqBody rabbitmqbody, message string) {
-	xtremepkg.LogError(message)
+	xtremepkg.LogError(message, true)
 
 	payload, _ := json.Marshal(mqBody.Message)
 
@@ -192,6 +192,6 @@ func consumeInvalid(mqBody rabbitmqbody, message string) {
 
 	err := xtremerabbitmq.RabbitMQSQL.Save(&messageFailed).Error
 	if err != nil {
-		xtremepkg.LogError(fmt.Sprintf("Save message failed invalid: %s", err))
+		xtremepkg.LogError(fmt.Sprintf("Save message failed invalid: %s", err), false)
 	}
 }
