@@ -1,8 +1,9 @@
 package xtremerabbitmq
 
 import (
-	"github.com/rabbitmq/amqp091-go"
 	"time"
+
+	"github.com/rabbitmq/amqp091-go"
 )
 
 var RabbitMQConsumer map[string]RabbitMQConsumerInterface
@@ -22,8 +23,6 @@ type RabbitMQConnection struct {
 }
 
 type RabbitMQExchange struct {
-	Name       string
-	Type       string
 	Durable    bool
 	AutoDelete bool
 	Internal   bool

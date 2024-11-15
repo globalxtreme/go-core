@@ -3,17 +3,21 @@ package command
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"time"
+
 	model2 "github.com/globalxtreme/go-core/v2/model"
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	xtremerabbitmq "github.com/globalxtreme/go-core/v2/rabbitmq"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/spf13/cobra"
-	"log"
-	"time"
 )
 
 type RabbitMQConsumeCommand struct {
-	Channel *amqp091.Channel
+	Channel  *amqp091.Channel
+	Type     string
+	Name     string
+	RouteKey string
 }
 
 type rabbitmqbody struct {
@@ -36,6 +40,24 @@ func (class *RabbitMQConsumeCommand) Command(cmd *cobra.Command) {
 	})
 }
 
+func (class *RabbitMQConsumeCommand) SetType(sType string) *RabbitMQConsumeCommand {
+	class.Type = sType
+
+	return class
+}
+
+func (class *RabbitMQConsumeCommand) SetName(sName string) *RabbitMQConsumeCommand {
+	class.Name = sName
+
+	return class
+}
+
+func (class *RabbitMQConsumeCommand) SetRouteKey(sRouteKey string) *RabbitMQConsumeCommand {
+	class.RouteKey = sRouteKey
+
+	return class
+}
+
 func (class *RabbitMQConsumeCommand) Handle() {
 	config := xtremerabbitmq.RabbitMQConf
 	connConf := config.Connection
@@ -54,8 +76,8 @@ func (class *RabbitMQConsumeCommand) Handle() {
 	defer ch.Close()
 
 	err = ch.ExchangeDeclare(
-		exchange.Name,
-		exchange.Type,
+		class.Name,
+		class.Type,
 		exchange.Durable,
 		exchange.AutoDelete,
 		exchange.Internal,
@@ -78,10 +100,15 @@ func (class *RabbitMQConsumeCommand) Handle() {
 		log.Panicf("Failed to declare a queue: %s", err)
 	}
 
+	routingKey := ""
+	if class.RouteKey != "" {
+		routingKey = q.Name
+	}
+
 	err = ch.QueueBind(
 		q.Name,
-		q.Name,
-		exchange.Name,
+		routingKey,
+		class.Name,
 		false,
 		nil,
 	)
