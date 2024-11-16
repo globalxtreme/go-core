@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os/exec"
+
 	xtrememodel "github.com/globalxtreme/go-core/v2/model"
 	"github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
-	"log"
-	"os/exec"
 )
 
 var (
@@ -19,6 +20,9 @@ var (
 type RabbitMQ struct {
 	Data       interface{}
 	Queues     []string
+	Type       string
+	Name       string
+	RouteKey   string
 	Key        string
 	MessageId  *int
 	Body       interface{}
@@ -46,6 +50,24 @@ func (mq *RabbitMQ) OnSender(sId uint, sType string) *RabbitMQ {
 	return mq
 }
 
+func (mq *RabbitMQ) SetType(sType string) *RabbitMQ {
+	mq.Type = sType
+
+	return mq
+}
+
+func (mq *RabbitMQ) SetName(sName string) *RabbitMQ {
+	mq.Name = sName
+
+	return mq
+}
+
+func (mq *RabbitMQ) SetRouteKey(sRouteKey string) *RabbitMQ {
+	mq.RouteKey = sRouteKey
+
+	return mq
+}
+
 func (mq *RabbitMQ) Push() {
 	mq.setupMessage()
 	mq.publishMessage()
@@ -53,7 +75,6 @@ func (mq *RabbitMQ) Push() {
 
 func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 	config := RabbitMQConf
-	exchange := config.Exchange
 
 	var message xtrememodel.RabbitMQMessage
 
@@ -65,7 +86,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 
 	msgContent := map[string]interface{}{
 		"key":       mq.Key,
-		"exchange":  exchange.Name,
+		"exchange":  mq.Name,
 		"queue":     config.Queue,
 		"message":   mq.Data,
 		"messageId": mq.MessageId,
@@ -88,7 +109,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 			"properties": mq.Properties,
 		}
 
-		message.Exchange = exchange.Name
+		message.Exchange = mq.Name
 		message.QueueSender = config.Queue
 		message.QueueConsumers = mq.Queues
 		message.Key = mq.Key
@@ -130,8 +151,8 @@ func (mq *RabbitMQ) publishMessage() {
 	defer ch.Close()
 
 	err = ch.ExchangeDeclare(
-		exchange.Name,
-		exchange.Type,
+		mq.Name,
+		mq.Type,
 		exchange.Durable,
 		exchange.AutoDelete,
 		exchange.Internal,
@@ -148,9 +169,14 @@ func (mq *RabbitMQ) publishMessage() {
 	body, _ := json.Marshal(mq.Body)
 
 	for _, queue := range mq.Queues {
+		routingKey := ""
+		if mq.RouteKey != "" {
+			routingKey = queue
+		}
+
 		err = ch.PublishWithContext(ctx,
-			exchange.Name,
-			queue,
+			mq.Name,
+			routingKey,
 			false,
 			false,
 			amqp091.Publishing{
@@ -159,6 +185,7 @@ func (mq *RabbitMQ) publishMessage() {
 				ContentType:   mq.Properties.ContentType,
 				Body:          body,
 			})
+
 		if err != nil {
 			log.Panicf("Failed to publish a message: %s", err)
 		}
