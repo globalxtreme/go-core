@@ -75,6 +75,12 @@ func (mq *RabbitMQ) Push() {
 
 func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 	config := RabbitMQConf
+	exchange := config.Exchange
+
+	exchangeName := mq.Name
+	if exchangeName == "" {
+		exchangeName = exchange.Name
+	}
 
 	var message xtrememodel.RabbitMQMessage
 
@@ -86,7 +92,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 
 	msgContent := map[string]interface{}{
 		"key":       mq.Key,
-		"exchange":  mq.Name,
+		"exchange":  exchangeName,
 		"queue":     config.Queue,
 		"message":   mq.Data,
 		"messageId": mq.MessageId,
@@ -109,7 +115,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 			"properties": mq.Properties,
 		}
 
-		message.Exchange = mq.Name
+		message.Exchange = exchangeName
 		message.QueueSender = config.Queue
 		message.QueueConsumers = mq.Queues
 		message.Key = mq.Key
@@ -138,6 +144,16 @@ func (mq *RabbitMQ) publishMessage() {
 	connConf := config.Connection
 	exchange := config.Exchange
 
+	exchangeName := mq.Name
+	if exchangeName == "" {
+		exchangeName = exchange.Name
+	}
+
+	exchangeType := mq.Type
+	if exchangeType == "" {
+		exchangeType = exchange.Type
+	}
+
 	conn, err := amqp091.Dial(fmt.Sprintf("amqp://%s:%s@%s:%s/", connConf.Username, connConf.Password, connConf.Host, connConf.Port))
 	if err != nil {
 		log.Panicf("Failed to connect to RabbitMQ: %s", err)
@@ -149,10 +165,9 @@ func (mq *RabbitMQ) publishMessage() {
 		log.Panicf("Failed to open a channel: %s", err)
 	}
 	defer ch.Close()
-
 	err = ch.ExchangeDeclare(
-		mq.Name,
-		mq.Type,
+		exchangeName,
+		exchangeType,
 		exchange.Durable,
 		exchange.AutoDelete,
 		exchange.Internal,
@@ -167,16 +182,33 @@ func (mq *RabbitMQ) publishMessage() {
 	defer cancel()
 
 	body, _ := json.Marshal(mq.Body)
+	if mq.RouteKey != "" {
+		for _, queue := range mq.Queues {
+			routingKey := mq.RouteKey
+			if mq.RouteKey != "" {
+				routingKey = queue
+			}
 
-	for _, queue := range mq.Queues {
-		routingKey := ""
-		if mq.RouteKey != "" {
-			routingKey = queue
+			err = ch.PublishWithContext(ctx,
+				exchangeName,
+				routingKey,
+				false,
+				false,
+				amqp091.Publishing{
+					CorrelationId: mq.Properties.CorrelationId,
+					DeliveryMode:  mq.Properties.DeliveryMode,
+					ContentType:   mq.Properties.ContentType,
+					Body:          body,
+				})
+
+			if err != nil {
+				log.Panicf("Failed to publish a message: %s", err)
+			}
 		}
-
+	} else {
 		err = ch.PublishWithContext(ctx,
-			mq.Name,
-			routingKey,
+			exchangeName,
+			mq.RouteKey,
 			false,
 			false,
 			amqp091.Publishing{
@@ -190,4 +222,5 @@ func (mq *RabbitMQ) publishMessage() {
 			log.Panicf("Failed to publish a message: %s", err)
 		}
 	}
+
 }

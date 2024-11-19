@@ -14,7 +14,11 @@ import (
 )
 
 type RabbitMQConsumeCommand struct {
-	Channel  *amqp091.Channel
+	Channel *amqp091.Channel
+	Config  []RabbitMQConsumeConfig
+}
+
+type RabbitMQConsumeConfig struct {
 	Type     string
 	Name     string
 	RouteKey string
@@ -39,22 +43,8 @@ func (class *RabbitMQConsumeCommand) Command(cmd *cobra.Command) {
 		},
 	})
 }
-
-func (class *RabbitMQConsumeCommand) SetType(sType string) *RabbitMQConsumeCommand {
-	class.Type = sType
-
-	return class
-}
-
-func (class *RabbitMQConsumeCommand) SetName(sName string) *RabbitMQConsumeCommand {
-	class.Name = sName
-
-	return class
-}
-
-func (class *RabbitMQConsumeCommand) SetRouteKey(sRouteKey string) *RabbitMQConsumeCommand {
-	class.RouteKey = sRouteKey
-
+func (class *RabbitMQConsumeCommand) SetConfig(config []RabbitMQConsumeConfig) *RabbitMQConsumeCommand {
+	class.Config = config
 	return class
 }
 
@@ -75,67 +65,65 @@ func (class *RabbitMQConsumeCommand) Handle() {
 	}
 	defer ch.Close()
 
-	err = ch.ExchangeDeclare(
-		class.Name,
-		class.Type,
-		exchange.Durable,
-		exchange.AutoDelete,
-		exchange.Internal,
-		exchange.NoWait,
-		exchange.Args,
-	)
-	if err != nil {
-		log.Panicf("Failed to declare an exchange: %s", err)
-	}
-
-	q, err := ch.QueueDeclare(
-		config.Queue,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		log.Panicf("Failed to declare a queue: %s", err)
-	}
-
-	routingKey := ""
-	if class.RouteKey != "" {
-		routingKey = q.Name
-	}
-
-	err = ch.QueueBind(
-		q.Name,
-		routingKey,
-		class.Name,
-		false,
-		nil,
-	)
-	if err != nil {
-		log.Panicf("Failed to bind a queue: %s", err)
-	}
-
-	msgs, err := ch.Consume(
-		config.Queue,
-		"",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		log.Panicf("Failed to register a consumer: %s", err)
-	}
-
 	var forever chan struct{}
 
-	go func() {
-		for d := range msgs {
-			processConsume(d.Body)
+	for _, configMap := range class.Config {
+		err = ch.ExchangeDeclare(
+			configMap.Name,
+			configMap.Type,
+			exchange.Durable,
+			exchange.AutoDelete,
+			exchange.Internal,
+			exchange.NoWait,
+			exchange.Args,
+		)
+		if err != nil {
+			log.Panicf("Failed to declare exchange %s: %s", configMap.Name, err)
 		}
-	}()
+
+		q, err := ch.QueueDeclare(
+			config.Queue,
+			true,
+			false,
+			false,
+			false,
+			nil,
+		)
+
+		if err != nil {
+			log.Panicf("Failed to declare a queue: %s", err)
+		}
+
+		err = ch.QueueBind(
+			q.Name,
+			configMap.RouteKey,
+			configMap.Name,
+			false,
+			nil,
+		)
+		if err != nil {
+			log.Panicf("Failed to bind queue %s to exchange %s: %s", q.Name, configMap.Name, err)
+		}
+
+		msgs, err := ch.Consume(
+			q.Name,
+			"",
+			true,
+			false,
+			false,
+			false,
+			nil,
+		)
+		if err != nil {
+			log.Panicf("Failed to register a consumer: %s", err)
+		}
+
+		go func() {
+			for d := range msgs {
+				processConsume(d.Body)
+			}
+		}()
+	}
 
 	log.Printf(" [*] Waiting for logs. To exit press CTRL+C")
 	<-forever
