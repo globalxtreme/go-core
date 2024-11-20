@@ -6,13 +6,15 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"net/http"
-	"os"
 	"time"
 )
 
 func ConversationHandler(router *mux.Router, path string, cb func(r *http.Request, message []byte) []byte) {
 	router.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		conn, subscription, cleanup := upgrade(w, r)
+		if conn == nil {
+			return
+		}
 		defer cleanup()
 
 		conn.SetPingHandler(nil)
@@ -32,6 +34,9 @@ func ConversationHandler(router *mux.Router, path string, cb func(r *http.Reques
 func MonitoringHandler(router *mux.Router, path string, period int, cb func(r *http.Request, message []byte) []byte) {
 	router.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		conn, subscription, cleanup := upgrade(w, r)
+		if conn == nil {
+			return
+		}
 		defer cleanup()
 
 		conn.SetPingHandler(nil)
@@ -60,7 +65,7 @@ func MonitoringHandler(router *mux.Router, path string, period int, cb func(r *h
 	}).Methods("GET")
 }
 
-func upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, Subscription, func()) {
+func upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, *Subscription, func()) {
 	var roomId string
 
 	upgrader := websocket.Upgrader{
@@ -78,7 +83,7 @@ func upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, Subscript
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		xtremepkg.LogError(fmt.Sprintf("Error upgrading connection: %v", err), true)
-		os.Exit(1)
+		return nil, nil, nil
 	}
 
 	subscription := Subscription{Conn: conn, RoomId: roomId}
@@ -89,5 +94,5 @@ func upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, Subscript
 		Hub.Unregister <- subscription
 	}
 
-	return conn, subscription, cleanup
+	return conn, &subscription, cleanup
 }
