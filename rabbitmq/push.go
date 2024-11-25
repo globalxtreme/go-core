@@ -18,17 +18,16 @@ var (
 )
 
 type RabbitMQ struct {
-	Data       interface{}
-	Queues     []string
-	Type       string
-	Name       string
-	RouteKey   string
-	Key        string
-	MessageId  *int
-	Body       interface{}
-	Properties publishingProperties
-	SenderId   *uint
-	SenderType *string
+	Data         interface{}
+	Queues       []string
+	Type         string
+	ExchangeName string
+	Key          string
+	MessageId    *int
+	Body         interface{}
+	Properties   publishingProperties
+	SenderId     *uint
+	SenderType   *string
 }
 
 type publishingProperties struct {
@@ -56,14 +55,8 @@ func (mq *RabbitMQ) SetType(sType string) *RabbitMQ {
 	return mq
 }
 
-func (mq *RabbitMQ) SetName(sName string) *RabbitMQ {
-	mq.Name = sName
-
-	return mq
-}
-
-func (mq *RabbitMQ) SetRouteKey(sRouteKey string) *RabbitMQ {
-	mq.RouteKey = sRouteKey
+func (mq *RabbitMQ) SetExchangeName(sName string) *RabbitMQ {
+	mq.ExchangeName = sName
 
 	return mq
 }
@@ -77,7 +70,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 	config := RabbitMQConf
 	exchange := config.Exchange
 
-	exchangeName := mq.Name
+	exchangeName := mq.ExchangeName
 	if exchangeName == "" {
 		exchangeName = exchange.Name
 	}
@@ -144,7 +137,7 @@ func (mq *RabbitMQ) publishMessage() {
 	connConf := config.Connection
 	exchange := config.Exchange
 
-	exchangeName := mq.Name
+	exchangeName := mq.ExchangeName
 	if exchangeName == "" {
 		exchangeName = exchange.Name
 	}
@@ -182,16 +175,11 @@ func (mq *RabbitMQ) publishMessage() {
 	defer cancel()
 
 	body, _ := json.Marshal(mq.Body)
-	if mq.RouteKey != "" {
+	if len(mq.Queues) > 0 {
 		for _, queue := range mq.Queues {
-			routingKey := mq.RouteKey
-			if mq.RouteKey != "" {
-				routingKey = queue
-			}
-
 			err = ch.PublishWithContext(ctx,
 				exchangeName,
-				routingKey,
+				queue,
 				false,
 				false,
 				amqp091.Publishing{
@@ -208,7 +196,7 @@ func (mq *RabbitMQ) publishMessage() {
 	} else {
 		err = ch.PublishWithContext(ctx,
 			exchangeName,
-			mq.RouteKey,
+			"",
 			false,
 			false,
 			amqp091.Publishing{

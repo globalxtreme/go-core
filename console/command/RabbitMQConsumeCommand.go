@@ -15,13 +15,12 @@ import (
 
 type RabbitMQConsumeCommand struct {
 	Channel *amqp091.Channel
-	Config  []RabbitMQConsumeConfig
+	Configs []RabbitMQConsumeConfig
 }
 
 type RabbitMQConsumeConfig struct {
-	Type     string
-	Name     string
-	RouteKey string
+	Type         string
+	ExchangeName string
 }
 
 type rabbitmqbody struct {
@@ -43,8 +42,8 @@ func (class *RabbitMQConsumeCommand) Command(cmd *cobra.Command) {
 		},
 	})
 }
-func (class *RabbitMQConsumeCommand) SetConfig(config []RabbitMQConsumeConfig) *RabbitMQConsumeCommand {
-	class.Config = config
+func (class *RabbitMQConsumeCommand) SetConfigs(configs []RabbitMQConsumeConfig) *RabbitMQConsumeCommand {
+	class.Configs = configs
 	return class
 }
 
@@ -67,9 +66,9 @@ func (class *RabbitMQConsumeCommand) Handle() {
 
 	var forever chan struct{}
 
-	for _, configMap := range class.Config {
+	for _, configMap := range class.Configs {
 		err = ch.ExchangeDeclare(
-			configMap.Name,
+			configMap.ExchangeName,
 			configMap.Type,
 			exchange.Durable,
 			exchange.AutoDelete,
@@ -78,7 +77,7 @@ func (class *RabbitMQConsumeCommand) Handle() {
 			exchange.Args,
 		)
 		if err != nil {
-			log.Panicf("Failed to declare exchange %s: %s", configMap.Name, err)
+			log.Panicf("Failed to declare exchange %s: %s", configMap.ExchangeName, err)
 		}
 
 		q, err := ch.QueueDeclare(
@@ -94,15 +93,28 @@ func (class *RabbitMQConsumeCommand) Handle() {
 			log.Panicf("Failed to declare a queue: %s", err)
 		}
 
-		err = ch.QueueBind(
-			q.Name,
-			configMap.RouteKey,
-			configMap.Name,
-			false,
-			nil,
-		)
-		if err != nil {
-			log.Panicf("Failed to bind queue %s to exchange %s: %s", q.Name, configMap.Name, err)
+		if configMap.ExchangeName == xtremepkg.RABBITMQ_TYPE_DIRECT {
+			err = ch.QueueBind(
+				q.Name,
+				q.Name,
+				configMap.ExchangeName,
+				false,
+				nil,
+			)
+			if err != nil {
+				log.Panicf("Failed to bind queue %s to exchange %s: %s", q.Name, configMap.ExchangeName, err)
+			}
+		} else {
+			err = ch.QueueBind(
+				q.Name,
+				"",
+				configMap.ExchangeName,
+				false,
+				nil,
+			)
+			if err != nil {
+				log.Panicf("Failed to bind queue %s to exchange %s: %s", q.Name, configMap.ExchangeName, err)
+			}
 		}
 
 		msgs, err := ch.Consume(
