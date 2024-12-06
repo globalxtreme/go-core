@@ -1,7 +1,11 @@
 package xtremews
 
 import (
+	"encoding/json"
+	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
+	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
+	"net/http"
 	"sync"
 )
 
@@ -15,9 +19,10 @@ type hub struct {
 }
 
 type Subscription struct {
-	Conn    *websocket.Conn
-	GroupId string
-	RoomId  string
+	Conn     *websocket.Conn
+	GroupId  string
+	RoomId   string
+	StopChan chan struct{}
 }
 
 type Message struct {
@@ -26,6 +31,25 @@ type Message struct {
 	Content     []byte
 	MessageType int
 }
+
+type WSOption struct {
+	Interval     int
+	Channel      string
+	DefaultEvent string
+}
+
+// ** --- EVENT --- */
+
+const WS_EVENT_RESPONSE = "response"
+const WS_EVENT_ROUTINE = "routine"
+const WS_EVENT_CONVERSATION = "conversation"
+const WS_EVENT_ACTION_CREATE = "action-create"
+const WS_EVENT_ACTION_UPDATE = "action-update"
+const WS_EVENT_ACTION_DELETE = "action-delete"
+
+// ** --- REQUEST --- */
+
+const WS_REQUEST_MESSAGE = "ws-request-message"
 
 var (
 	Hub *hub
@@ -62,6 +86,7 @@ func Run() {
 
 			if _, ok := Hub.Rooms[sub.RoomId]; ok {
 				delete(Hub.Rooms, sub.RoomId)
+				close(sub.StopChan)
 				sub.Conn.Close()
 			}
 
@@ -101,4 +126,48 @@ func Run() {
 			Hub.Mutex.Unlock()
 		}
 	}
+}
+
+func Publish(channel string, action string, message interface{}) error {
+	conn := xtremepkg.RedisPool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("PUBLISH", channel, SetContent(action, message))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func Subscribe(channel string, handleMessage func(message []byte)) error {
+	conn := xtremepkg.RedisPool.Get()
+	defer conn.Close()
+
+	psc := redis.PubSubConn{Conn: conn}
+	if err := psc.Subscribe(channel); err != nil {
+		return err
+	}
+
+	for {
+		switch v := psc.Receive().(type) {
+		case redis.Message:
+			handleMessage(v.Data)
+		case error:
+			return v
+		}
+	}
+}
+
+func GetMessage(r *http.Request) []byte {
+	return r.Context().Value(WS_REQUEST_MESSAGE).([]byte)
+}
+
+func SetContent(event string, content interface{}) []byte {
+	data := map[string]interface{}{
+		"event":  event,
+		"result": content,
+	}
+
+	result, _ := json.Marshal(data)
+	return result
 }
