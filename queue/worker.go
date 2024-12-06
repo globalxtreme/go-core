@@ -35,6 +35,11 @@ func (q Queue) Work(workers []JobConf) {
 	xtremepkg.InitRedisPool()
 
 	var pools []*work.WorkerPool
+	defer func() {
+		for _, pool := range pools {
+			pool.Stop()
+		}
+	}()
 
 	for _, worker := range workers {
 		if len(names) > 0 {
@@ -59,10 +64,6 @@ func (q Queue) Work(workers []JobConf) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, os.Kill)
 	<-signalChan
-
-	for _, pool := range pools {
-		pool.Stop()
-	}
 
 	fmt.Println("All worker is done!")
 }
