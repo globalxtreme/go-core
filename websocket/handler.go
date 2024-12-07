@@ -37,7 +37,6 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) inte
 		ctx := context.WithValue(r.Context(), WS_REQUEST_MESSAGE, message)
 		Hub.Broadcast <- Message{
 			MessageType: websocket.TextMessage,
-			GroupId:     subscription.GroupId,
 			RoomId:      subscription.RoomId,
 			Content:     SetContent(defaultEvent, cb(r.WithContext(ctx))),
 		}
@@ -61,7 +60,6 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) inte
 					}
 				}
 			}()
-
 		}
 
 		if option.Channel != "" && len(option.Channel) > 0 {
