@@ -43,6 +43,7 @@ type WSOption struct {
 const WS_EVENT_RESPONSE = "response"
 const WS_EVENT_ROUTINE = "routine"
 const WS_EVENT_CONVERSATION = "conversation"
+const WS_EVENT_ERROR = "error"
 const WS_EVENT_ACTION_CREATE = "action-create"
 const WS_EVENT_ACTION_UPDATE = "action-update"
 const WS_EVENT_ACTION_DELETE = "action-delete"
