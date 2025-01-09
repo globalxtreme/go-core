@@ -2,7 +2,7 @@ package xtremecore
 
 import (
 	"github.com/globalxtreme/go-core/v2/handler"
-	"github.com/globalxtreme/go-core/v2/middleware"
+	xtrememdw "github.com/globalxtreme/go-core/v2/middleware"
 	"github.com/gorilla/mux"
 )
 
@@ -15,6 +15,10 @@ func RegisterRouter(router *mux.Router, callback CallbackRouter) {
 	// Storage route
 	stHandler := handler.BaseStorageHandler{}
 	router.HandleFunc("/storages/{path:.*}", stHandler.ShowFile).Methods("GET")
+
+	// Log route
+	logHandler := handler.BaseLogHandler{}
+	router.HandleFunc("/log-active", logHandler.Activate).Methods("POST")
 
 	callback(router)
 }
