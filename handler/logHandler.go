@@ -16,7 +16,7 @@ func (ctr BaseLogHandler) Activate(w http.ResponseWriter, r *http.Request) {
 		status = "active"
 	}
 
-	message := "Log status " + status
-	res := xtremeres.Response{}
-	res.Success(w, message)
+	res := xtremeres.Response{Object: map[string]interface{}{"log": status}}
+
+	res.Success(w)
 }
