@@ -16,9 +16,9 @@ func RegisterRouter(router *mux.Router, callback CallbackRouter) {
 	stHandler := handler.BaseStorageHandler{}
 	router.HandleFunc("/storages/{path:.*}", stHandler.ShowFile).Methods("GET")
 
-	// Log route
+	// Log route with dynamic path
 	logHandler := handler.BaseLogHandler{}
-	router.HandleFunc("/log-active", logHandler.Activate).Methods("POST")
+	router.HandleFunc("/{path:.*}/log-active", logHandler.Activate).Methods("POST")
 
 	callback(router)
 }
