@@ -14,7 +14,6 @@ type BaseCommand interface {
 
 func Commands(cobraCmd *cobra.Command, newCommands []BaseCommand) {
 	addCommand(cobraCmd, &command2.DeleteLogFileCommand{})
-	addCommand(cobraCmd, &command2.RabbitMQConsumeCommand{})
 
 	for _, newCommand := range newCommands {
 		addCommand(cobraCmd, newCommand)
