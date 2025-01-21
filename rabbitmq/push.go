@@ -73,6 +73,10 @@ func (mq *RabbitMQ) Push() {
 func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 	mqConnection, ok := RabbitMQConnectionCache[mq.Connection]
 	if !ok {
+		if len(RabbitMQConnectionCache) == 0 {
+			RabbitMQConnectionCache = make(map[string]xtrememodel.RabbitMQConnection)
+		}
+
 		mqConnQuery := RabbitMQSQL.Where("connection = ?", mq.Connection)
 		if mq.Connection == RABBITMQ_CONNECTION_LOCAL {
 			mqConnQuery = mqConnQuery.Where("service = ?", mq.service)
@@ -109,6 +113,7 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 		message.Queue = mq.Queue
 		message.SenderId = mq.SenderId
 		message.SenderType = mq.SenderType
+		message.SenderService = mq.service
 		message.Payload = payload
 
 		err := RabbitMQSQL.Create(&message).Error
