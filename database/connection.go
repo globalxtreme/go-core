@@ -19,21 +19,24 @@ const POSTGRESQL_COLLATE = "en_US.utf8"
 const MYSQL_COLLATE = "utf8mb4_unicode_ci"
 
 type DBConf struct {
-	Driver    string
-	Host      string
-	Port      any
-	Owner     string
-	Username  string
-	Password  string
-	Database  string
-	Charset   string
-	ParseTime bool
-	Loc       string
-	Collation string
-	TimeZone  string
+	Driver          string
+	Host            string
+	Port            any
+	Owner           string
+	Username        string
+	Password        string
+	Database        string
+	Charset         string
+	ParseTime       bool
+	Loc             string
+	Collation       string
+	TimeZone        string
+	MaxOpenCons     int
+	MaxIdleCons     int
+	MaxLifetimeCons time.Duration
 }
 
-func Connect(conn DBConf) *gorm.DB {
+func Connect(conn DBConf) (*gorm.DB, func()) {
 	var driver *gorm.DB
 
 	switch conn.Driver {
@@ -45,7 +48,32 @@ func Connect(conn DBConf) *gorm.DB {
 		break
 	}
 
-	return driver
+	sqlDB, err := driver.DB()
+	if err != nil {
+		panic(err)
+	}
+
+	if conn.MaxOpenCons == 0 {
+		conn.MaxOpenCons = 1000
+	}
+
+	if conn.MaxIdleCons == 0 {
+		conn.MaxIdleCons = 50
+	}
+
+	if conn.MaxLifetimeCons == 0 {
+		conn.MaxLifetimeCons = 10 * time.Minute
+	}
+
+	sqlDB.SetMaxOpenConns(conn.MaxOpenCons)
+	sqlDB.SetMaxIdleConns(conn.MaxIdleCons)
+	sqlDB.SetConnMaxLifetime(conn.MaxLifetimeCons)
+
+	DBClose := func() {
+		sqlDB.Close()
+	}
+
+	return driver, DBClose
 }
 
 func SetMigration(conn *gorm.DB, collate string) *gorm.DB {
