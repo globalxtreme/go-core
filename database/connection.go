@@ -3,12 +3,14 @@ package xtremedb
 import (
 	"fmt"
 	"github.com/globalxtreme/go-core/v2/pkg"
+	"github.com/natefinch/lumberjack"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"log"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -34,6 +36,13 @@ type DBConf struct {
 	MaxOpenCons     int
 	MaxIdleCons     int
 	MaxLifetimeCons time.Duration
+}
+
+func GetDBDrivers() []string {
+	return []string{
+		POSTGRESQL_DRIVER,
+		MYSQL_DRIVER,
+	}
 }
 
 func Connect(conn DBConf) (*gorm.DB, func()) {
@@ -136,10 +145,22 @@ func setNewLogger(driver string) logger.Interface {
 	storageDir := os.Getenv("STORAGE_DIR") + "/logs"
 	xtremepkg.CheckAndCreateDirectory(storageDir)
 
-	filename := fmt.Sprintf("%s-%s.log", driver, time.Now().Format("2006-01-02"))
-	logFile, err := os.OpenFile(storageDir+"/"+filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logDays := os.Getenv("LOG_DAYS")
+	if logDays == "" {
+		logDays = "7"
+	}
+
+	maxAge, err := strconv.Atoi(logDays)
 	if err != nil {
-		log.Fatal(err)
+		maxAge = 7
+	}
+
+	logFile := &lumberjack.Logger{
+		Filename:   fmt.Sprintf("%s/%s.log", storageDir, driver),
+		MaxSize:    100, // megabytes
+		MaxBackups: 30,
+		MaxAge:     maxAge, // days
+		Compress:   true,
 	}
 
 	newLogger := logger.New(
