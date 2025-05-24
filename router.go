@@ -12,13 +12,10 @@ func RegisterRouter(router *mux.Router, callback CallbackRouter) {
 	router.Use(xtrememdw.PanicHandler)
 	router.Use(xtrememdw.PrepareRequestHandler)
 
-	// Storage route
-	stHandler := handler.BaseStorageHandler{}
-	router.HandleFunc("/storages/{path:.*}", stHandler.ShowFile).Methods("GET")
-
-	// Log route with dynamic path
-	logHandler := handler.BaseLogHandler{}
-	router.HandleFunc("/{path:.*}/log-active", logHandler.Activate).Methods("POST")
+	h := handler.Handler{}
+	router.HandleFunc("/health-check", h.HealthCheck).Methods("GET")
+	router.HandleFunc("/storages/{path:.*}", h.StorageShowFile).Methods("GET")
+	router.HandleFunc("/{path:.*}/log-active", h.LogActivate).Methods("POST")
 
 	callback(router)
 }

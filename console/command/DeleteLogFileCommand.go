@@ -22,6 +22,10 @@ func (command *DeleteLogFileCommand) Command(cmd *cobra.Command) {
 	})
 }
 
+func (command *DeleteLogFileCommand) Prepare() (cancel func()) {
+	return func() {}
+}
+
 func (command *DeleteLogFileCommand) Handle() {
 	storageDir := os.Getenv("STORAGE_DIR") + "/logs/"
 

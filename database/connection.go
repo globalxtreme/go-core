@@ -2,14 +2,17 @@ package xtremedb
 
 import (
 	"fmt"
-	"github.com/globalxtreme/go-core/v2/pkg"
+	"log"
+	"os"
+	"strconv"
+	"time"
+
+	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
+	"github.com/natefinch/lumberjack"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
 )
 
 const POSTGRESQL_DRIVER = "pgsql"
@@ -34,6 +37,13 @@ type DBConf struct {
 	MaxOpenCons     int
 	MaxIdleCons     int
 	MaxLifetimeCons time.Duration
+}
+
+func GetDBDrivers() []string {
+	return []string{
+		POSTGRESQL_DRIVER,
+		MYSQL_DRIVER,
+	}
 }
 
 func Connect(conn DBConf) (*gorm.DB, func()) {
@@ -78,6 +88,47 @@ func Connect(conn DBConf) (*gorm.DB, func()) {
 
 func SetMigration(conn *gorm.DB, collate string) *gorm.DB {
 	return conn.Set("gorm:table_options", fmt.Sprintf("COLLATE=%s", collate))
+}
+
+func WithMultipleTransactions(dbs map[string]*gorm.DB, fc func(txs map[string]*gorm.DB) error) (err error) {
+	panicked := true
+	txs := make(map[string]*gorm.DB)
+
+	for name, db := range dbs {
+		tx := db.Begin()
+		if tx.Error != nil {
+			return tx.Error
+		}
+		txs[name] = tx
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			for _, tx := range txs {
+				_ = tx.Rollback()
+			}
+			panic(r)
+		}
+		if panicked || err != nil {
+			for _, tx := range txs {
+				_ = tx.Rollback()
+			}
+		} else {
+			for _, tx := range txs {
+				if commitErr := tx.Commit().Error; commitErr != nil {
+					for _, tx := range txs {
+						_ = tx.Rollback()
+					}
+					err = commitErr
+					return
+				}
+			}
+		}
+	}()
+
+	err = fc(txs)
+	panicked = false
+	return
 }
 
 func postgresqlConnection(conn DBConf) *gorm.DB {
@@ -136,10 +187,22 @@ func setNewLogger(driver string) logger.Interface {
 	storageDir := os.Getenv("STORAGE_DIR") + "/logs"
 	xtremepkg.CheckAndCreateDirectory(storageDir)
 
-	filename := fmt.Sprintf("%s-%s.log", driver, time.Now().Format("2006-01-02"))
-	logFile, err := os.OpenFile(storageDir+"/"+filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logDays := os.Getenv("LOG_DAYS")
+	if logDays == "" {
+		logDays = "7"
+	}
+
+	maxAge, err := strconv.Atoi(logDays)
 	if err != nil {
-		log.Fatal(err)
+		maxAge = 7
+	}
+
+	logFile := &lumberjack.Logger{
+		Filename:   fmt.Sprintf("%s/%s.log", storageDir, driver),
+		MaxSize:    100, // megabytes
+		MaxBackups: 30,
+		MaxAge:     maxAge, // days
+		Compress:   true,
 	}
 
 	newLogger := logger.New(
