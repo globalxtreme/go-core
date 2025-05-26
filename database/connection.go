@@ -90,7 +90,75 @@ func SetMigration(conn *gorm.DB, collate string) *gorm.DB {
 	return conn.Set("gorm:table_options", fmt.Sprintf("COLLATE=%s", collate))
 }
 
-func WithMultipleTransactions(dbs map[string]*gorm.DB, fc func(txs map[string]*gorm.DB) error) (err error) {
+type DBTransaction struct {
+	Conn *gorm.DB
+	Tx   *gorm.DB
+}
+
+func (tx *DBTransaction) Begin() {
+	if tx.Tx == nil {
+		tx.Tx = tx.Conn.Begin()
+	}
+}
+
+func BeginTransactions(txs map[string]*DBTransaction) {
+	if len(txs) > 0 {
+		for key, tx := range txs {
+			tx.Tx = tx.Conn.Begin()
+			txs[key] = tx
+		}
+	}
+}
+
+func CustomTransactions(dbs map[string]*gorm.DB, fc func(cons map[string]*DBTransaction) error) (err error) {
+	panicked := true
+	cons := make(map[string]*DBTransaction)
+
+	for name, db := range dbs {
+		cons[name] = &DBTransaction{
+			Conn: db,
+		}
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			for _, con := range cons {
+				if con.Tx != nil {
+					_ = con.Tx.Rollback()
+				}
+			}
+			panic(r)
+		}
+
+		if panicked || err != nil {
+			for _, con := range cons {
+				if con.Tx != nil {
+					_ = con.Tx.Rollback()
+				}
+			}
+		} else {
+			for _, con := range cons {
+				if con.Tx == nil {
+					continue
+				}
+
+				if commitErr := con.Tx.Commit().Error; commitErr != nil {
+					for _, con := range cons {
+						_ = con.Tx.Rollback()
+					}
+					err = commitErr
+					return
+				}
+			}
+		}
+	}()
+
+	err = fc(cons)
+	panicked = false
+	return
+}
+
+func MultipleTransactions(dbs map[string]*gorm.DB, fc func(txs map[string]*gorm.DB) error) (err error) {
 	panicked := true
 	txs := make(map[string]*gorm.DB)
 
