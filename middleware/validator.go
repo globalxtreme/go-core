@@ -4,14 +4,13 @@ import (
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	xtremeres "github.com/globalxtreme/go-core/v2/response"
 	"github.com/go-playground/validator/v10"
-	"net/http"
 	"strings"
 	"time"
 )
 
 type Validator struct{}
 
-func (v Validator) Make(r *http.Request, rules interface{}) {
+func (v Validator) Make(rules interface{}) {
 	err := xtremepkg.XtremeValidate.Struct(rules)
 	if err != nil {
 		var attributes []interface{}
