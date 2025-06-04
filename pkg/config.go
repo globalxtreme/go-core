@@ -22,6 +22,9 @@ var (
 	// HostFull --> Host with protocol
 	HostFull string
 
+	// PrivateHost --> Private Host for microservice communication
+	PrivateHost string
+
 	// DevMode --> Dev mode for use .env or kubernetes configmap
 	DevMode bool
 
@@ -60,6 +63,10 @@ func InitHost() {
 	}
 
 	Host += ":" + port
+}
+
+func InitPrivateHost() {
+	PrivateHost = os.Getenv("PRIVATE_HOST")
 }
 
 func InitDevMode() {
