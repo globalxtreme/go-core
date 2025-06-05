@@ -49,3 +49,7 @@ func ErrXtremeDeleteFile(internalMsg string) {
 func ErrXtremeUUID(internalMsg string) {
 	Error(http.StatusInternalServerError, "Unable to generate uuid", internalMsg, false, nil)
 }
+
+func ErrXtremeAPI(internalMsg string) {
+	Error(http.StatusInternalServerError, "Calling external api is invalid!", internalMsg, false, nil)
+}

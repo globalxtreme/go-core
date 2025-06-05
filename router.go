@@ -8,7 +8,7 @@ import (
 
 type CallbackRouter func(*mux.Router)
 
-func RegisterRouter(router *mux.Router, callback CallbackRouter) {
+func RegisterRouter(router *mux.Router, callbacks ...CallbackRouter) {
 	router.Use(xtrememdw.PanicHandler)
 	router.Use(xtrememdw.PrepareRequestHandler)
 
@@ -17,5 +17,9 @@ func RegisterRouter(router *mux.Router, callback CallbackRouter) {
 	router.HandleFunc("/storages/{path:.*}", h.StorageShowFile).Methods("GET")
 	router.HandleFunc("/{path:.*}/log-active", h.LogActivate).Methods("POST")
 
-	callback(router)
+	if len(callbacks) > 0 {
+		for _, callback := range callbacks {
+			callback(router)
+		}
+	}
 }
