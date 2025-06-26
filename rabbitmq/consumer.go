@@ -216,7 +216,7 @@ func process(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, 
 
 	finish(message)
 
-	sendDeliveryNotification(connection, &message, result, false)
+	sendDeliveryNotification(connection, &message, result, true)
 
 	log.Printf("%-10s %s %s", "SUCCESS:", printMessage(consumerKey), time.DateTime)
 }
