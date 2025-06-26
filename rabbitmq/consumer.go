@@ -216,7 +216,7 @@ func process(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, 
 
 	finish(message)
 
-	sendDeliveryNotification(connection, &message, result)
+	sendDeliveryNotification(connection, &message, result, false)
 
 	log.Printf("%-10s %s %s", "SUCCESS:", printMessage(consumerKey), time.DateTime)
 }
@@ -249,10 +249,10 @@ func failed(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, m
 		xtremepkg.LogError(fmt.Sprintf("Save message failed failed: %s", err), false)
 	}
 
-	sendDeliveryNotification(connection, message, messageFailed.Exception)
+	sendDeliveryNotification(connection, message, messageFailed.Exception, false)
 }
 
-func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message *xtrememodel.RabbitMQMessage, result interface{}) {
+func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message *xtrememodel.RabbitMQMessage, result interface{}, isSuccess bool) {
 	if message != nil && message.ID > 0 {
 		var delivery xtrememodel.RabbitMQMessageDelivery
 		RabbitMQSQL.Where("messageId = ?", message.ID).
@@ -267,6 +267,10 @@ func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message
 			deliveryResponses = append(deliveryResponses, result.(map[string]interface{}))
 
 			delivery.StatusId = RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID
+			if isSuccess {
+				delivery.StatusId = RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH_ID
+			}
+
 			delivery.Responses = (*xtrememodel.ArrayMapInterfaceColumn)(&deliveryResponses)
 
 			RabbitMQSQL.Save(&delivery)
@@ -281,10 +285,11 @@ func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message
 
 			setQueueKey := func(key string) string {
 				keys := strings.Split(key, ".")
-				lastKey := len(keys) - 1
 
+				lastKey := len(keys) - 1
 				keys[lastKey] = "processed"
-				keys[lastKey+1] = "queue"
+
+				keys = append(keys, "queue")
 
 				return strings.Join(keys, ".")
 			}
