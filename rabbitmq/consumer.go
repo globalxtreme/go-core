@@ -7,13 +7,12 @@ import (
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	"github.com/rabbitmq/amqp091-go"
 	"log"
-	"os"
 	"strings"
 	"time"
 )
 
 type RabbitMQConsumerInterface interface {
-	Consume(message any) error
+	Consume(message xtrememodel.RabbitMQMessage) (interface{}, error)
 }
 
 type RabbitMQConsumeOpt struct {
@@ -46,7 +45,7 @@ func Consume(connection string, options []RabbitMQConsumeOpt) {
 
 		mqConnQuery := RabbitMQSQL.Where("connection = ?", connection)
 		if connection == RABBITMQ_CONNECTION_LOCAL {
-			mqConnQuery = mqConnQuery.Where("service = ?", os.Getenv("SERVICE"))
+			mqConnQuery = mqConnQuery.Where("service = ?", xtremepkg.GetServiceName())
 		}
 
 		err := mqConnQuery.First(&mqConnection).Error
@@ -205,17 +204,19 @@ func process(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, 
 	var message xtrememodel.RabbitMQMessage
 	err = RabbitMQSQL.First(&message, mqBody.MessageId).Error
 	if err != nil {
-		failed(connection, opt, mqBody, fmt.Sprintf("Get message data: %s", err))
+		failed(connection, opt, mqBody, fmt.Sprintf("Get message data: %s", err), nil)
 		return
 	}
 
-	err = opt.Consumer.Consume(mqBody.Data)
+	result, err := opt.Consumer.Consume(message)
 	if err != nil {
-		failed(connection, opt, mqBody, fmt.Sprintf("Consume message is failed: %s", err))
+		failed(connection, opt, mqBody, fmt.Sprintf("Consume message is failed: %s", err), &message)
 		return
 	}
 
 	finish(message)
+
+	sendDeliveryNotification(connection, &message, result)
 
 	log.Printf("%-10s %s %s", "SUCCESS:", printMessage(consumerKey), time.DateTime)
 }
@@ -229,23 +230,95 @@ func finish(message xtrememodel.RabbitMQMessage) {
 	}
 }
 
-func failed(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, mqBody rabbitMQBody, message string) {
-	xtremepkg.LogError(message, true)
+func failed(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, mqBody rabbitMQBody, errorMsg string, message *xtrememodel.RabbitMQMessage) {
+	xtremepkg.LogError(errorMsg, true)
 
 	payload, _ := json.Marshal(mqBody.Data)
 
 	var messageFailed xtrememodel.RabbitMQMessageFailed
 	messageFailed.ConnectionId = connection.ID
 	messageFailed.MessageId = mqBody.MessageId
-	messageFailed.Service = os.Getenv("SERVICE")
+	messageFailed.Service = xtremepkg.GetServiceName()
 	messageFailed.Exchange = opt.Exchange
 	messageFailed.Queue = opt.Queue
 	messageFailed.Payload = payload
-	messageFailed.Exception = map[string]interface{}{"message": message, "trace": ""}
+	messageFailed.Exception = map[string]interface{}{"message": errorMsg, "trace": ""}
 
 	err := RabbitMQSQL.Create(&messageFailed).Error
 	if err != nil {
 		xtremepkg.LogError(fmt.Sprintf("Save message failed failed: %s", err), false)
+	}
+
+	sendDeliveryNotification(connection, message, messageFailed.Exception)
+}
+
+func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message *xtrememodel.RabbitMQMessage, result interface{}) {
+	if message != nil && message.ID > 0 {
+		var delivery xtrememodel.RabbitMQMessageDelivery
+		RabbitMQSQL.Where("messageId = ?", message.ID).
+			Where("consumerService = ?", xtremepkg.GetServiceName()).
+			First(&delivery)
+		if delivery.ID > 0 {
+			deliveryResponses := make([]map[string]interface{}, 0)
+			if delivery.Responses != nil {
+				deliveryResponses = *delivery.Responses
+			}
+
+			deliveryResponses = append(deliveryResponses, result.(map[string]interface{}))
+
+			delivery.StatusId = RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID
+			delivery.Responses = (*xtrememodel.ArrayMapInterfaceColumn)(&deliveryResponses)
+
+			RabbitMQSQL.Save(&delivery)
+
+			if !delivery.NeedNotification {
+				return
+			}
+
+			if message.Resend > 0 && delivery.StatusId == RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID {
+				return
+			}
+
+			setQueueKey := func(key string) string {
+				keys := strings.Split(key, ".")
+				lastKey := len(keys) - 1
+
+				keys[lastKey] = "processed"
+				keys[lastKey+1] = "queue"
+
+				return strings.Join(keys, ".")
+			}
+
+			queue := ""
+			if message.Exchange != "" {
+				queue = setQueueKey(message.Exchange)
+			} else if message.Queue != "" {
+				queue = setQueueKey(message.Queue)
+			}
+
+			if queue != "" {
+				deliveryRes := map[string]interface{}{
+					"status": RabbitMQMessageDeliveryStatus{}.IDAndName(delivery.StatusId),
+					"error":  nil,
+					"result": nil,
+				}
+
+				if delivery.StatusId == RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH_ID {
+					deliveryRes["result"] = result
+				} else {
+					deliveryRes["error"] = result
+				}
+
+				push := RabbitMQ{
+					Connection: connection.Connection,
+					Queue:      queue,
+					SenderId:   message.SenderId,
+					SenderType: message.SenderType,
+					Data:       deliveryRes,
+				}
+				push.Push()
+			}
+		}
 	}
 }
 

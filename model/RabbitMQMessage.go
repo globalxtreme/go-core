@@ -5,7 +5,7 @@ type RabbitMQMessage struct {
 	ConnectionId  uint               `gorm:"column:connectionId;type:bigint;null"`
 	Exchange      string             `gorm:"column:exchange;type:varchar(255);null"`
 	Queue         string             `gorm:"column:queue;type:varchar(255);null"`
-	SenderId      *uint              `gorm:"column:senderId;type:int;default:null"`
+	SenderId      *string            `gorm:"column:senderId;type:char(45);default:null"`
 	SenderType    *string            `gorm:"column:senderType;type:varchar(255);default:null"`
 	SenderService string             `gorm:"column:senderService;type:varchar(255);default:null"`
 	Payload       MapInterfaceColumn `gorm:"column:payload;type:json;default:null"`

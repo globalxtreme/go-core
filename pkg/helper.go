@@ -183,6 +183,14 @@ func ArrayUnique[TD comparable](strings []TD) []TD {
 	return result
 }
 
+func GetServiceName() string {
+	if ServiceName == "" {
+		ServiceName = os.Getenv("SERVICE")
+	}
+
+	return ServiceName
+}
+
 func ToInt(text string) int {
 	value, _ := strconv.Atoi(text)
 	return value
