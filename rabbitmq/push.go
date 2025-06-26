@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 )
 
@@ -15,15 +16,21 @@ type RabbitMQ struct {
 	Connection string
 	Exchange   string
 	Queue      string
+	Deliveries []rabbitMQDelivery
 	Data       interface{}
 	MessageId  *int
-	SenderId   *uint
+	SenderId   *string
 	SenderType *string
 	Timeout    *time.Duration
 
 	service    string
 	body       interface{}
 	properties publishingProperties
+}
+
+type rabbitMQDelivery struct {
+	Service          string
+	NeedNotification bool
 }
 
 type publishingProperties struct {
@@ -50,8 +57,32 @@ func (mq *RabbitMQ) OnQueue(queue string) *RabbitMQ {
 	return mq
 }
 
-func (mq *RabbitMQ) OnSender(senderId uint, senderType string) *RabbitMQ {
-	mq.SenderId = &senderId
+func (mq *RabbitMQ) OnDelivery(service string, needNotificationArg ...bool) *RabbitMQ {
+	delivery := rabbitMQDelivery{
+		Service: service,
+	}
+
+	if len(needNotificationArg) > 0 {
+		delivery.NeedNotification = needNotificationArg[0]
+	}
+
+	mq.Deliveries = append(mq.Deliveries, delivery)
+
+	return mq
+}
+
+func (mq *RabbitMQ) OnSender(senderId any, senderType string) *RabbitMQ {
+	var strSenderId string
+	switch senderId.(type) {
+	case string:
+		strSenderId = senderId.(string)
+	case uint:
+		strSenderId = strconv.Itoa(int(senderId.(uint)))
+	case int:
+		strSenderId = strconv.Itoa(senderId.(int))
+	}
+
+	mq.SenderId = &strSenderId
 	mq.SenderType = &senderType
 
 	return mq
@@ -122,6 +153,20 @@ func (mq *RabbitMQ) setupMessage() *RabbitMQ {
 
 			message.Payload = payload
 			RabbitMQSQL.Save(&message)
+
+			if mq.Deliveries != nil && len(mq.Deliveries) > 0 {
+				msgDeliveries := make([]xtrememodel.RabbitMQMessageDelivery, 0)
+				for _, delivery := range mq.Deliveries {
+					msgDeliveries = append(msgDeliveries, xtrememodel.RabbitMQMessageDelivery{
+						MessageId:        message.ID,
+						ConsumerService:  delivery.Service,
+						NeedNotification: delivery.NeedNotification,
+						StatusId:         RABBITMQ_MESSAGE_DELIVERY_STATUS_PENDING_ID,
+					})
+				}
+
+				RabbitMQSQL.Create(&msgDeliveries)
+			}
 		} else {
 			log.Panicf("Unable to save message: %s", err)
 		}

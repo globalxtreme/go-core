@@ -42,6 +42,9 @@ var (
 
 	// RedisPool --> Redis pool for open connection
 	RedisPool *redis.Pool
+
+	// ServiceName -> Service name from .env
+	ServiceName string
 )
 
 func InitHost() {
