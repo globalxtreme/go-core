@@ -233,6 +233,8 @@ func finish(message xtrememodel.RabbitMQMessage) {
 func failed(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, mqBody rabbitMQBody, errorMsg string, message *xtrememodel.RabbitMQMessage) {
 	xtremepkg.LogError(errorMsg, true)
 
+	exceptionRes := map[string]interface{}{"message": errorMsg, "trace": ""}
+
 	payload, _ := json.Marshal(mqBody.Data)
 
 	var messageFailed xtrememodel.RabbitMQMessageFailed
@@ -242,14 +244,14 @@ func failed(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, m
 	messageFailed.Exchange = opt.Exchange
 	messageFailed.Queue = opt.Queue
 	messageFailed.Payload = payload
-	messageFailed.Exception = map[string]interface{}{"message": errorMsg, "trace": ""}
+	messageFailed.Exception = exceptionRes
 
 	err := RabbitMQSQL.Create(&messageFailed).Error
 	if err != nil {
 		xtremepkg.LogError(fmt.Sprintf("Save message failed failed: %s", err), false)
 	}
 
-	sendDeliveryNotification(connection, message, messageFailed.Exception, false)
+	sendDeliveryNotification(connection, message, exceptionRes, false)
 }
 
 func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message *xtrememodel.RabbitMQMessage, result interface{}, isSuccess bool) {
@@ -264,7 +266,8 @@ func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message
 				deliveryResponses = *delivery.Responses
 			}
 
-			deliveryResponses = append(deliveryResponses, result.(map[string]interface{}))
+			resultMap := result.(map[string]interface{})
+			deliveryResponses = append(deliveryResponses, resultMap)
 
 			delivery.StatusId = RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID
 			if isSuccess {
@@ -302,16 +305,20 @@ func sendDeliveryNotification(connection xtrememodel.RabbitMQConnection, message
 			}
 
 			if queue != "" {
-				deliveryRes := map[string]interface{}{
-					"status": RabbitMQMessageDeliveryStatus{}.IDAndName(delivery.StatusId),
-					"error":  nil,
-					"result": nil,
+				deliveryRes := RabbitMQDeliveryResponse{
+					Status: rabbitMQDeliveryResponseStatus{
+						ID:   delivery.StatusId,
+						Name: RabbitMQMessageDeliveryStatus{}.Display(delivery.StatusId),
+					},
 				}
 
 				if delivery.StatusId == RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH_ID {
-					deliveryRes["result"] = result
+					deliveryRes.Result = result
 				} else {
-					deliveryRes["error"] = result
+					deliveryRes.Error = rabbitMQDeliveryResponseError{
+						Message: resultMap["message"].(string),
+						Trace:   resultMap["trace"].(string),
+					}
 				}
 
 				push := RabbitMQ{

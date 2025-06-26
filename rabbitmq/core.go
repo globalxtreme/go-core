@@ -13,9 +13,9 @@ const RABBITMQ_CONNECTION_LOCAL = "local"
 const RABBITMQ_MESSAGE_DELIVERY_STATUS_PENDING_ID = 1
 const RABBITMQ_MESSAGE_DELIVERY_STATUS_PENDING = "Pending"
 const RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH_ID = 2
-const RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH = "Pending"
+const RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH = "Finish"
 const RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID = 3
-const RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR = "Pending"
+const RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR = "Error"
 
 var (
 	RabbitMQSQL  *gorm.DB
@@ -47,6 +47,22 @@ type RabbitMQExchangeConf struct {
 	Internal   bool
 	NoWait     bool
 	Args       amqp091.Table
+}
+
+type RabbitMQDeliveryResponse struct {
+	Status rabbitMQDeliveryResponseStatus `json:"status"`
+	Error  rabbitMQDeliveryResponseError  `json:"error"`
+	Result interface{}                    `json:"result"`
+}
+
+type rabbitMQDeliveryResponseStatus struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type rabbitMQDeliveryResponseError struct {
+	Message string `json:"message"`
+	Trace   string `json:"trace"`
 }
 
 type RabbitMQMessageDeliveryStatus struct{}
