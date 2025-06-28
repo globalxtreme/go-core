@@ -96,7 +96,7 @@ func PrepareManualConsumer(form AsyncTransactionForm, response *map[string]inter
 		SenderService    string                               `gorm:"column:senderService"`
 		StatusId         int                                  `gorm:"column:statusId"`
 		NeedNotification bool                                 `gorm:"column:needNotification"`
-		Responses        *xtrememodel.ArrayMapInterfaceColumn `gorm:"column:responses"`
+		Responses        *xtrememodel.ArrayMapInterfaceColumn `gorm:"column:responses;type:json"`
 	}
 
 	if form.MessageId > 0 && form.SenderId != "" {
