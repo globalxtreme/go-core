@@ -65,6 +65,12 @@ type rabbitMQDeliveryResponseError struct {
 	Trace   string `json:"trace"`
 }
 
+type AsyncTransactionForm struct {
+	MessageId  uint   `json:"messageId"`
+	SenderId   string `json:"senderId"`
+	SenderType string `json:"senderType"`
+}
+
 type RabbitMQMessageDeliveryStatus struct{}
 
 func (cons RabbitMQMessageDeliveryStatus) OptionIDNames() map[int]string {
