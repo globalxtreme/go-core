@@ -53,3 +53,15 @@ func ErrXtremeUUID(internalMsg string) {
 func ErrXtremeAPI(internalMsg string) {
 	Error(http.StatusInternalServerError, "Calling external api is invalid!", internalMsg, false, nil)
 }
+
+func ErrXtremeRabbitMQMessageGet(internalMsg string) {
+	Error(http.StatusNotFound, "RabbitMQ message not found", internalMsg, false, nil)
+}
+
+func ErrXtremeRabbitMQMessageDeliveryGet(internalMsg string) {
+	Error(http.StatusNotFound, "RabbitMQ message delivery not found", internalMsg, false, nil)
+}
+
+func ErrXtremeRabbitMQMessageDeliveryValidation(internalMsg string) {
+	Error(http.StatusBadRequest, "RabbitMQ message delivery form invalid", internalMsg, false, nil)
+}
