@@ -367,8 +367,13 @@ func updateMessageDeliveryStatus(connection xtrememodel.RabbitMQConnection, mess
 				deliveryResponses = *delivery.Responses
 			}
 
-			resultMap := result.(map[string]interface{})
-			deliveryResponses = append(deliveryResponses, resultMap)
+			var resultMap map[string]interface{}
+			if result != nil {
+				var valid bool
+				if resultMap, valid = result.(map[string]interface{}); valid {
+					deliveryResponses = append(deliveryResponses, resultMap)
+				}
+			}
 
 			delivery.StatusId = RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID
 			if isSuccess {
