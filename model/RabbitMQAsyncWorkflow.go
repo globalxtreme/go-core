@@ -2,15 +2,15 @@ package xtrememodel
 
 type RabbitMQAsyncWorkflow struct {
 	RabbitMQBaseModel
-	Action           string  `gorm:"column:action;type:varchar(255);null"`
+	Action           string  `gorm:"column:action;type:varchar(150);null"`
 	StatusId         int     `gorm:"column:statusId;type:tinyint"`
-	ReferenceId      string  `gorm:"column:senderId;type:char(45);default:not null"`
-	ReferenceType    string  `gorm:"column:senderType;type:varchar(255);default:not null"`
-	ReferenceService string  `gorm:"column:senderService;type:varchar(255);default:null"`
+	ReferenceId      string  `gorm:"column:referenceId;type:varchar(45);not null"`
+	ReferenceType    string  `gorm:"column:referenceType;type:varchar(200);not null"`
+	ReferenceService string  `gorm:"column:referenceService;type:varchar(100);null"`
 	TotalStep        int     `gorm:"column:totalStep;type:int"`
-	Reprocessed      float64 `gorm:"column:reprocessed;type:decimal(8,2);default:0"`
-	CreatedBy        *string `gorm:"column:createdBy;type:char(255);default:null"`
-	CreatedByName    *string `gorm:"column:createdByName;type:varchar(255);default:null"`
+	Reprocessed      int     `gorm:"column:reprocessed;type:int;default:0"`
+	CreatedBy        *string `gorm:"column:createdBy;type:char(36);null"`
+	CreatedByName    *string `gorm:"column:createdByName;type:varchar(255);null"`
 }
 
 func (RabbitMQAsyncWorkflow) TableName() string {
