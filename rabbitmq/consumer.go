@@ -5,7 +5,6 @@ import (
 	"fmt"
 	xtrememodel "github.com/globalxtreme/go-core/v2/model"
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
-	xtremeres "github.com/globalxtreme/go-core/v2/response"
 	"github.com/rabbitmq/amqp091-go"
 	"log"
 	"strings"
@@ -82,106 +81,6 @@ func Consume(connection string, options []RabbitMQConsumeOpt) {
 
 	log.Printf(" [*] Waiting for logs. To exit press CTRL+C")
 	<-forever
-}
-
-func PrepareManualConsumer(form AsyncTransactionForm, response *map[string]interface{}) (pushNotification func()) {
-	var messageDelivery struct {
-		MessageId        uint                                 `gorm:"column:messageId"`
-		DeliveryId       uint                                 `gorm:"column:deliveryId"`
-		Connection       string                               `gorm:"column:connection"`
-		Exchange         string                               `gorm:"column:exchange"`
-		Queue            string                               `gorm:"column:queue"`
-		SenderId         string                               `gorm:"column:senderId"`
-		SenderType       string                               `gorm:"column:senderType"`
-		SenderService    string                               `gorm:"column:senderService"`
-		StatusId         int                                  `gorm:"column:statusId"`
-		NeedNotification bool                                 `gorm:"column:needNotification"`
-		Responses        *xtrememodel.ArrayMapInterfaceColumn `gorm:"column:responses;type:json"`
-	}
-
-	if form.MessageId > 0 && form.SenderId != "" {
-		err := RabbitMQSQL.Table("message_deliveries as deliveries").
-			Select(
-				"messages.id as messageId",
-				"deliveries.id as deliveryId",
-				"connections.connection",
-				"messages.exchange",
-				"messages.queue",
-				"messages.senderId",
-				"messages.senderType",
-				"messages.senderService",
-				"deliveries.statusId",
-				"deliveries.needNotification",
-				"deliveries.responses",
-			).
-			Joins(`INNER JOIN messages on deliveries.messageId = messages.id`).
-			Joins(`INNER JOIN connections on messages.connectionId = connections.id`).
-			Where(`messages.id = ? AND messages.senderId = ? AND deliveries.consumerService = ?`,
-				form.MessageId, form.SenderId, xtremepkg.GetServiceName()).
-			Scan(&messageDelivery).Error
-		if err != nil || messageDelivery.DeliveryId == 0 {
-			xtremeres.ErrXtremeRabbitMQMessageDeliveryValidation("")
-		}
-
-		if messageDelivery.StatusId != RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID {
-			xtremeres.ErrXtremeRabbitMQMessageDeliveryValidation("Status message delivery is not error!")
-		}
-	}
-
-	pushNotification = func() {
-		if messageDelivery.DeliveryId > 0 {
-			if r := recover(); r != nil {
-				panic(r)
-			}
-
-			deliveryResponses := make([]map[string]interface{}, 0)
-			if messageDelivery.Responses != nil {
-				deliveryResponses = *messageDelivery.Responses
-			}
-
-			if response != nil {
-				deliveryResponses = append(deliveryResponses, *response)
-			}
-
-			finishId := RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH_ID
-			RabbitMQSQL.Model(&xtrememodel.RabbitMQMessageDelivery{}).
-				Where(`id = ?`, messageDelivery.DeliveryId).
-				Updates(&xtrememodel.RabbitMQMessageDelivery{
-					StatusId:  finishId,
-					Responses: (*xtrememodel.ArrayMapInterfaceColumn)(&deliveryResponses),
-				})
-
-			if messageDelivery.NeedNotification {
-				queue := ""
-				if messageDelivery.Exchange != "" {
-					queue = setQueueKey(messageDelivery.Exchange)
-				} else if messageDelivery.Queue != "" {
-					queue = setQueueKey(messageDelivery.Queue)
-				}
-
-				if queue != "" {
-					deliveryRes := RabbitMQDeliveryResponse{
-						Status: rabbitMQDeliveryResponseStatus{
-							ID:   finishId,
-							Name: RabbitMQMessageDeliveryStatus{}.Display(finishId),
-						},
-						Result: response,
-					}
-
-					push := RabbitMQ{
-						Connection: messageDelivery.Connection,
-						Queue:      queue,
-						SenderId:   &messageDelivery.SenderId,
-						SenderType: &messageDelivery.SenderType,
-						Data:       deliveryRes,
-					}
-					push.Push()
-				}
-			}
-		}
-	}
-
-	return pushNotification
 }
 
 func fanoutConsumer(ch *amqp091.Channel, connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt) {

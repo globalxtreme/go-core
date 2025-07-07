@@ -33,12 +33,6 @@ type rabbitMQDelivery struct {
 	NeedNotification bool
 }
 
-type publishingProperties struct {
-	CorrelationId string
-	DeliveryMode  uint8
-	ContentType   string
-}
-
 func (mq *RabbitMQ) OnConnection(connection string) *RabbitMQ {
 	mq.Connection = connection
 

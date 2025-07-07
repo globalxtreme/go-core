@@ -65,3 +65,27 @@ func ErrXtremeRabbitMQMessageDeliveryGet(internalMsg string) {
 func ErrXtremeRabbitMQMessageDeliveryValidation(internalMsg string) {
 	Error(http.StatusBadRequest, "RabbitMQ message delivery form invalid", internalMsg, false, nil)
 }
+
+func ErrXtremeRabbitMQAsyncWorkflowGet(internalMsg string) {
+	Error(http.StatusNotFound, "RabbitMQ async workflow not found", internalMsg, false, nil)
+}
+
+func ErrXtremeRabbitMQAsyncWorkflowSave(internalMsg string) {
+	Error(http.StatusInternalServerError, "Unable to create rabbitMQ async workflow", internalMsg, false, nil)
+}
+
+func ErrXtremeRabbitMQAsyncWorkflowValidation(internalMsg string) {
+	Error(http.StatusBadRequest, "RabbitMQ async workflow form invalid", internalMsg, false, nil)
+}
+
+func ErrXtremeRabbitMQAsyncWorkflowStepGet(internalMsg string) {
+	Error(http.StatusNotFound, "RabbitMQ async workflow step not found", internalMsg, false, nil)
+}
+
+func ErrXtremeRabbitMQAsyncWorkflowStepSave(internalMsg string) {
+	Error(http.StatusInternalServerError, "Unable to create rabbitMQ async workflow step", internalMsg, false, nil)
+}
+
+func ErrXtremeRabbitMQAsyncWorkflowStepValidation(internalMsg string) {
+	Error(http.StatusBadRequest, "RabbitMQ async workflow step form invalid", internalMsg, false, nil)
+}
