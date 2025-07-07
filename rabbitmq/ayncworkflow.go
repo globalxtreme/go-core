@@ -322,6 +322,17 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 			xtremepkg.LogError(fmt.Sprintf("Next async workflow step does not exists. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
 		}
 
+		resultMap, ok := result.(map[string]interface{})
+		if ok && len(resultMap) > 0 {
+			err = RabbitMQSQL.Where("id = ?", nextStep.ID).
+				Updates(&xtrememodel.RabbitMQAsyncWorkflowStep{
+					Payload: (*xtrememodel.MapInterfaceColumn)(&resultMap),
+				}).Error
+			if err != nil {
+				xtremepkg.LogError(fmt.Sprintf("Unable to update payload to next step. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
+			}
+		}
+
 		pushWorkflowMessage(workflow.ID, nextStep.Queue, result)
 	}
 }
