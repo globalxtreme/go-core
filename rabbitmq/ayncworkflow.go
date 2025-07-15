@@ -14,12 +14,13 @@ import (
 )
 
 type GXAsyncWorkflow struct {
-	Strict        bool
-	Action        string
-	ReferenceId   string
-	ReferenceType string
-	CreatedBy     *string
-	CreatedByName *string
+	Strict         bool
+	Action         string
+	ReferenceId    string
+	ReferenceType  string
+	SuccessMessage string
+	CreatedBy      *string
+	CreatedByName  *string
 
 	totalStep int
 	firstStep GXAsyncWorkflowStepOpt
@@ -40,11 +41,7 @@ func (flow *GXAsyncWorkflow) OnAction(action string) {
 }
 
 func (flow *GXAsyncWorkflow) OnStep(opt GXAsyncWorkflowStepOpt) {
-	if flow.totalStep == 0 {
-		flow.totalStep = 1
-	} else {
-		flow.totalStep++
-	}
+	flow.totalStep++
 
 	opt.stepOrder = flow.totalStep
 
@@ -74,9 +71,13 @@ func (flow *GXAsyncWorkflow) OnReference(referenceId any, referenceType string) 
 	flow.ReferenceType = referenceType
 }
 
-func (flow *GXAsyncWorkflow) OnCreatedBy(createdBy string, createdByName string) {
+func (flow *GXAsyncWorkflow) SetCreatedBy(createdBy string, createdByName string) {
 	flow.CreatedBy = &createdBy
 	flow.CreatedByName = &createdByName
+}
+
+func (flow *GXAsyncWorkflow) SetSuccessMessage(message string) {
+	flow.SuccessMessage = message
 }
 
 func (flow *GXAsyncWorkflow) Push() {
@@ -143,6 +144,16 @@ func (flow *GXAsyncWorkflow) Push() {
 
 type AsyncWorkflowConsumerInterface interface {
 	Consume(workflow xtrememodel.RabbitMQAsyncWorkflowStep) (interface{}, error)
+	Response(workflow xtrememodel.RabbitMQAsyncWorkflowStep, data ...interface{}) interface{}
+}
+
+type AsyncWorkflowForwardPayloadInterface interface {
+	ForwardPayload() []AsyncWorkflowForwardPayloadResult
+}
+
+type AsyncWorkflowForwardPayloadResult struct {
+	Queue   string
+	Payload interface{}
 }
 
 type AsyncWorkflowConsumeOpt struct {
@@ -257,13 +268,23 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, body []byte) {
 
 	processingWorkflow(workflow, workflowStep)
 
-	result, err := opt.Consumer.Consume(workflowStep)
-	if err != nil {
-		failedWorkflow(fmt.Sprintf("Consume async workflow is failed: %s", err), &workflow, &workflowStep)
-		return
+	var result interface{}
+	if workflowStep.StatusId != RABBITMQ_ASYNC_WORKFLOW_STATUS_FINISH_ID {
+		result, err = opt.Consumer.Consume(workflowStep)
+		if err != nil {
+			failedWorkflow(fmt.Sprintf("Consume async workflow is failed: %s", err), &workflow, &workflowStep)
+			return
+		}
+	} else {
+		result = opt.Consumer.Response(workflowStep)
 	}
 
-	finishWorkflow(workflow, workflowStep, result)
+	var forwardPayloads []AsyncWorkflowForwardPayloadResult
+	if forwarder, ok := opt.Consumer.(AsyncWorkflowForwardPayloadInterface); ok {
+		forwardPayloads = forwarder.ForwardPayload()
+	}
+
+	finishWorkflow(workflow, workflowStep, result, forwardPayloads)
 
 	log.Printf("%-10s %s %s", "SUCCESS:", printMessage(opt.Queue), time.DateTime)
 }
@@ -290,7 +311,7 @@ func processingWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep
 	}
 }
 
-func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtrememodel.RabbitMQAsyncWorkflowStep, result interface{}) {
+func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtrememodel.RabbitMQAsyncWorkflowStep, result interface{}, forwardPayloads []AsyncWorkflowForwardPayloadResult) {
 	var stepResponse *map[string]interface{}
 	if stepResponseMap, ok := result.(map[string]interface{}); ok && len(stepResponseMap) > 0 {
 		stepResponse = &stepResponseMap
@@ -300,7 +321,7 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 		Updates(&xtrememodel.RabbitMQAsyncWorkflowStep{
 			StatusId: RABBITMQ_ASYNC_WORKFLOW_STATUS_FINISH_ID,
 			Response: (*xtrememodel.MapInterfaceColumn)(stepResponse),
-		})
+		}).Error
 	if err != nil {
 		xtremepkg.LogError(fmt.Sprintf("Error updating workflow step status to finish: %s", err), true)
 	}
@@ -322,8 +343,58 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 			xtremepkg.LogError(fmt.Sprintf("Next async workflow step does not exists. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
 		}
 
+		forwardPayloadMap := make(map[string]AsyncWorkflowForwardPayloadResult)
+		forwardPayloadQueues := make([]string, 0)
+		for _, forwardPayload := range forwardPayloads {
+			if forwardPayload.Payload == nil {
+				continue
+			}
+
+			if payloadMap, ok := forwardPayload.Payload.(map[string]any); !ok || len(payloadMap) == 0 {
+				continue
+			}
+
+			forwardPayloadMap[forwardPayload.Queue] = forwardPayload
+			forwardPayloadQueues = append(forwardPayloadQueues, forwardPayload.Queue)
+		}
+
+		if len(forwardPayloadQueues) > 0 {
+			var forwardSteps []xtrememodel.RabbitMQAsyncWorkflowStep
+			RabbitMQSQL.Where("workflowId = ? AND queue IN ?", workflow.ID, forwardPayloadQueues).Find(&forwardSteps)
+			for _, forwardStep := range forwardSteps {
+				originForwardPayload := make(map[string]interface{})
+				if forwardStep.ForwardPayload != nil {
+					originForwardPayload = *forwardStep.ForwardPayload
+				}
+
+				forwardStepPayload := make(map[string]interface{})
+				if firstForwardStepPayload, ok := originForwardPayload[workflowStep.Queue].(map[string]interface{}); ok && len(firstForwardStepPayload) > 0 {
+					forwardStepPayload = firstForwardStepPayload
+				}
+
+				remappingForwardPayload(forwardPayloadMap[forwardStep.Queue], &forwardStepPayload)
+
+				originForwardPayload[workflowStep.Queue] = forwardStepPayload
+
+				err = RabbitMQSQL.Where("id = ?", forwardStep.ID).
+					Updates(&xtrememodel.RabbitMQAsyncWorkflowStep{
+						ForwardPayload: (*xtrememodel.MapInterfaceColumn)(&originForwardPayload),
+					}).Error
+				if err != nil {
+					xtremepkg.LogError(fmt.Sprintf("Unable to update forward payload to next step. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
+				}
+
+				if nextStep.Queue == forwardStep.Queue {
+					nextStep.ForwardPayload = (*xtrememodel.MapInterfaceColumn)(&forwardStepPayload)
+				}
+			}
+		}
+
+		payload := make(map[string]interface{})
 		resultMap, ok := result.(map[string]interface{})
 		if ok && len(resultMap) > 0 {
+			payload = resultMap
+
 			err = RabbitMQSQL.Where("id = ?", nextStep.ID).
 				Updates(&xtrememodel.RabbitMQAsyncWorkflowStep{
 					Payload: (*xtrememodel.MapInterfaceColumn)(&resultMap),
@@ -331,9 +402,15 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 			if err != nil {
 				xtremepkg.LogError(fmt.Sprintf("Unable to update payload to next step. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
 			}
+
+			if nextStep.ForwardPayload != nil && len(*nextStep.ForwardPayload) > 0 {
+				for _, forwardPayload := range *nextStep.ForwardPayload {
+					remappingForwardPayload(forwardPayload, &payload)
+				}
+			}
 		}
 
-		pushWorkflowMessage(workflow.ID, nextStep.Queue, result)
+		pushWorkflowMessage(workflow.ID, nextStep.Queue, payload)
 	}
 }
 
@@ -417,5 +494,42 @@ func pushWorkflowMessage(workflowId uint, queue string, payload interface{}) {
 		})
 	if err != nil {
 		log.Panicf("Failed to send a message: %s", err)
+	}
+}
+
+func remappingForwardPayload(forwardPayload any, originStepPayload *map[string]any) {
+	if forwardPayload == nil {
+		return
+	}
+
+	payloadMap, ok := forwardPayload.(map[string]any)
+	if !ok {
+		return
+	}
+
+	for fKey, fPayload := range payloadMap {
+		switch val := fPayload.(type) {
+		case map[string]any:
+			newMap := make(map[string]any)
+			(*originStepPayload)[fKey] = newMap
+			remappingForwardPayload(val, &newMap)
+
+		case []any:
+			newSlice := make([]any, len(val))
+			for i, item := range val {
+				switch itemVal := item.(type) {
+				case map[string]any:
+					nestedMap := make(map[string]any)
+					remappingForwardPayload(itemVal, &nestedMap)
+					newSlice[i] = nestedMap
+				default:
+					newSlice[i] = itemVal
+				}
+			}
+			(*originStepPayload)[fKey] = newSlice
+
+		default:
+			(*originStepPayload)[fKey] = val
+		}
 	}
 }

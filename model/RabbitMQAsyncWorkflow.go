@@ -9,6 +9,7 @@ type RabbitMQAsyncWorkflow struct {
 	ReferenceService string  `gorm:"column:referenceService;type:varchar(100);null"`
 	TotalStep        int     `gorm:"column:totalStep;type:int"`
 	Reprocessed      int     `gorm:"column:reprocessed;type:int;default:0"`
+	SuccessMessage   string  `gorm:"column:successMessage;type:text;null"`
 	CreatedBy        *string `gorm:"column:createdBy;type:char(36);null"`
 	CreatedByName    *string `gorm:"column:createdByName;type:varchar(255);null"`
 }
