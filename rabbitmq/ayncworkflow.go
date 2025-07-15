@@ -143,8 +143,13 @@ func (flow *GXAsyncWorkflow) Push() {
 }
 
 type AsyncWorkflowConsumerInterface interface {
-	Consume(workflow xtrememodel.RabbitMQAsyncWorkflowStep) (interface{}, error)
-	Response(workflow xtrememodel.RabbitMQAsyncWorkflowStep, data ...interface{}) interface{}
+	setReferenceId(referenceId string)
+	setReferenceType(referenceType string)
+
+	GetReferenceId() string
+	GetReferenceType() string
+	Consume(payload interface{}) (interface{}, error)
+	Response(payload interface{}, data ...interface{}) interface{}
 }
 
 type AsyncWorkflowForwardPayloadInterface interface {
@@ -164,6 +169,36 @@ type AsyncWorkflowConsumeOpt struct {
 type asyncWorkflowBody struct {
 	WorkflowId uint `json:"workflowId"`
 	Data       any  `json:"data"`
+}
+
+type AsyncWorkflowConsumerBase struct {
+	referenceId      string
+	referenceType    string
+	referenceService string
+}
+
+func (b *AsyncWorkflowConsumerBase) setReferenceId(referenceId string) {
+	b.referenceId = referenceId
+}
+
+func (b *AsyncWorkflowConsumerBase) setReferenceType(referenceType string) {
+	b.referenceType = referenceType
+}
+
+func (b *AsyncWorkflowConsumerBase) setReferenceService(referenceService string) {
+	b.referenceService = referenceService
+}
+
+func (b *AsyncWorkflowConsumerBase) GetReferenceId() string {
+	return b.referenceId
+}
+
+func (b *AsyncWorkflowConsumerBase) GetReferenceType() string {
+	return b.referenceType
+}
+
+func (b *AsyncWorkflowConsumerBase) GetReferenceService() string {
+	return b.referenceService
 }
 
 func ConsumeWorkflow(options []AsyncWorkflowConsumeOpt) {
@@ -266,17 +301,20 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, body []byte) {
 		return
 	}
 
-	processingWorkflow(workflow, workflowStep)
+	opt.Consumer.setReferenceId(workflow.ReferenceId)
+	opt.Consumer.setReferenceType(workflow.ReferenceType)
+
+	processingWorkflow(&workflow, &workflowStep)
 
 	var result interface{}
 	if workflowStep.StatusId != RABBITMQ_ASYNC_WORKFLOW_STATUS_FINISH_ID {
-		result, err = opt.Consumer.Consume(workflowStep)
+		result, err = opt.Consumer.Consume(mqBody.Data)
 		if err != nil {
 			failedWorkflow(fmt.Sprintf("Consume async workflow is failed: %s", err), &workflow, &workflowStep)
 			return
 		}
 	} else {
-		result = opt.Consumer.Response(workflowStep)
+		result = opt.Consumer.Response(mqBody.Data)
 	}
 
 	var forwardPayloads []AsyncWorkflowForwardPayloadResult
@@ -289,8 +327,10 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, body []byte) {
 	log.Printf("%-10s %s %s", "SUCCESS:", printMessage(opt.Queue), time.DateTime)
 }
 
-func processingWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtrememodel.RabbitMQAsyncWorkflowStep) {
+func processingWorkflow(workflow *xtrememodel.RabbitMQAsyncWorkflow, workflowStep *xtrememodel.RabbitMQAsyncWorkflowStep) {
 	if workflow.StatusId != RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID {
+		workflow.StatusId = RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID
+
 		err := RabbitMQSQL.Where("id = ?", workflow.ID).
 			Updates(&xtrememodel.RabbitMQAsyncWorkflow{
 				StatusId: RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID,
@@ -301,6 +341,8 @@ func processingWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep
 	}
 
 	if workflowStep.StatusId != RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID {
+		workflowStep.StatusId = RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID
+
 		err := RabbitMQSQL.Where("id = ?", workflowStep.ID).
 			Updates(&xtrememodel.RabbitMQAsyncWorkflowStep{
 				StatusId: RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID,
@@ -372,7 +414,7 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 					forwardStepPayload = firstForwardStepPayload
 				}
 
-				remappingForwardPayload(forwardPayloadMap[forwardStep.Queue], &forwardStepPayload)
+				remappingForwardPayload(forwardPayloadMap[forwardStep.Queue].Payload, &forwardStepPayload)
 
 				originForwardPayload[workflowStep.Queue] = forwardStepPayload
 
