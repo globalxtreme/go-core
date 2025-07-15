@@ -17,6 +17,15 @@ const RABBITMQ_MESSAGE_DELIVERY_STATUS_FINISH = "Finish"
 const RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR_ID = 3
 const RABBITMQ_MESSAGE_DELIVERY_STATUS_ERROR = "Error"
 
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_PENDING_ID = 1
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_PENDING = "Pending"
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID = 2
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING = "Processing"
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_FINISH_ID = 3
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_FINISH = "Finish"
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR_ID = 4
+const RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR = "Error"
+
 var (
 	RabbitMQSQL  *gorm.DB
 	RabbitMQConf rabbitmqconf
@@ -65,10 +74,15 @@ type rabbitMQDeliveryResponseError struct {
 	Trace   string `json:"trace"`
 }
 
-type AsyncTransactionForm struct {
-	MessageId  uint   `json:"messageId"`
-	SenderId   string `json:"senderId"`
-	SenderType string `json:"senderType"`
+type AsyncWorkflowForm struct {
+	WorkflowId uint `json:"workflowId"`
+	StepOrder  int  `json:"stepOrder"`
+}
+
+type publishingProperties struct {
+	CorrelationId string
+	DeliveryMode  uint8
+	ContentType   string
 }
 
 type RabbitMQMessageDeliveryStatus struct{}
@@ -89,6 +103,32 @@ func (cons RabbitMQMessageDeliveryStatus) IDAndName(id int) map[string]interface
 }
 
 func (cons RabbitMQMessageDeliveryStatus) Display(id int) string {
+	idNames := cons.OptionIDNames()
+	if name, ok := idNames[id]; ok {
+		return name
+	}
+	return ""
+}
+
+type RabbitMQAsyncWorkflowStatus struct{}
+
+func (cons RabbitMQAsyncWorkflowStatus) OptionIDNames() map[int]string {
+	return map[int]string{
+		RABBITMQ_ASYNC_WORKFLOW_STATUS_PENDING_ID:    RABBITMQ_ASYNC_WORKFLOW_STATUS_PENDING,
+		RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID: RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING,
+		RABBITMQ_ASYNC_WORKFLOW_STATUS_FINISH_ID:     RABBITMQ_ASYNC_WORKFLOW_STATUS_FINISH,
+		RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR_ID:      RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR,
+	}
+}
+
+func (cons RabbitMQAsyncWorkflowStatus) IDAndName(id int) map[string]interface{} {
+	return map[string]interface{}{
+		"id":   id,
+		"name": cons.Display(id),
+	}
+}
+
+func (cons RabbitMQAsyncWorkflowStatus) Display(id int) string {
 	idNames := cons.OptionIDNames()
 	if name, ok := idNames[id]; ok {
 		return name
