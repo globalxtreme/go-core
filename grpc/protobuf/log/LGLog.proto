@@ -17,4 +17,8 @@ message LogRequest {
   bytes stack = 4;
   string dateTime = 5;
   bool bug = 6;
+  bytes payload = 7;
+  string performedBy = 8;
+  string performedByName = 9;
+  string performedByType = 10;
 }
