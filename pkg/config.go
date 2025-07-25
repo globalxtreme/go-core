@@ -75,9 +75,14 @@ func InitDevMode() {
 	}
 }
 
-func InitLogRPC() func() {
+func InitLogRPC(force ...bool) func() {
+	isForce := false
+	if len(force) > 0 && force[0] == true {
+		isForce = true
+	}
+
 	addr := os.Getenv("GRPC_LOG_HOST")
-	if !DevMode && addr != "" {
+	if (isForce || !DevMode) && addr != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 		keepaliveParam := keepalive.ClientParameters{
