@@ -39,6 +39,10 @@ func Log(form LogForm) {
 			PerformedByType: form.PerformedByType,
 		}
 
+		if request.Type == "" {
+			request.Type = "INFO"
+		}
+
 		if form.Payload != nil {
 			payload, _ := json.Marshal(form.Payload)
 			request.Payload = payload
