@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) interface{}, args ...WSOption) {
+func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (interface{}, error), args ...WSOption) {
 	router.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		conn, subscription, cleanup := upgrade(w, r)
 		if conn == nil {
@@ -34,11 +34,16 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) inte
 			defaultEvent = option.DefaultEvent
 		}
 
+		handleCallback := func(event string, r *http.Request) []byte {
+			result, err := cb(r)
+			return SetContent(event, result, err)
+		}
+
 		ctx := context.WithValue(r.Context(), WS_REQUEST_MESSAGE, message)
 		Hub.Broadcast <- Message{
 			MessageType: websocket.TextMessage,
 			RoomId:      subscription.RoomId,
-			Content:     SetContent(defaultEvent, cb(r.WithContext(ctx))),
+			Content:     handleCallback(defaultEvent, r.WithContext(ctx)),
 		}
 
 		if option.Interval > 0 {
@@ -52,7 +57,7 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) inte
 						Hub.Broadcast <- Message{
 							MessageType: websocket.TextMessage,
 							RoomId:      subscription.RoomId,
-							Content:     SetContent(WS_EVENT_ROUTINE, cb(r.WithContext(ctx))),
+							Content:     handleCallback(WS_EVENT_ROUTINE, r.WithContext(ctx)),
 						}
 					case <-subscription.StopChan:
 						xtremepkg.LogError(fmt.Sprintf("Stopping goroutine for RoomId: %s", subscription.RoomId), false)
@@ -74,7 +79,7 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) inte
 				}()
 
 				go func() {
-					err := Subscribe(option.Channel, func(message []byte) {
+					err := Subscribe(option.Channel, subscription.GroupId, func(message []byte) {
 						select {
 						case Hub.Broadcast <- Message{
 							MessageType: websocket.TextMessage,
@@ -115,7 +120,7 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) inte
 				MessageType: websocket.TextMessage,
 				GroupId:     subscription.GroupId,
 				RoomId:      subscription.RoomId,
-				Content:     SetContent(defaultEvent, cb(r.WithContext(ctx))),
+				Content:     handleCallback(defaultEvent, r.WithContext(ctx)),
 			}
 		}
 	}).Methods("GET")

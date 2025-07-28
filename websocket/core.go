@@ -2,6 +2,7 @@ package xtremews
 
 import (
 	"encoding/json"
+	"fmt"
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
@@ -43,6 +44,7 @@ type WSOption struct {
 const WS_EVENT_RESPONSE = "response"
 const WS_EVENT_ROUTINE = "routine"
 const WS_EVENT_CONVERSATION = "conversation"
+const WS_EVENT_MONITORING = "monitoring"
 const WS_EVENT_ERROR = "error"
 const WS_EVENT_ACTION_CREATE = "action-create"
 const WS_EVENT_ACTION_UPDATE = "action-update"
@@ -52,11 +54,15 @@ const WS_EVENT_ACTION_DELETE = "action-delete"
 
 const WS_REQUEST_MESSAGE = "ws-request-message"
 
+// ** --- CHANNEL --- */
+
+const CHANNEL_WE_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING = "ws-request-message"
+
 var (
 	Hub *hub
 )
 
-func Init() {
+func InitWebSocket() {
 	Hub = &hub{
 		Groups:     make(map[string]map[string]bool),
 		Rooms:      make(map[string]*websocket.Conn),
@@ -64,6 +70,8 @@ func Init() {
 		Register:   make(chan Subscription),
 		Unregister: make(chan Subscription),
 	}
+
+	go Run()
 }
 
 func Run() {
@@ -129,21 +137,23 @@ func Run() {
 	}
 }
 
-func Publish(channel string, action string, message interface{}) error {
+func Publish(channel, groupId string, action string, message interface{}) error {
 	conn := xtremepkg.RedisPool.Get()
 	defer conn.Close()
 
-	_, err := conn.Do("PUBLISH", channel, SetContent(action, message))
+	channel += fmt.Sprintf("-%s", groupId)
+	_, err := conn.Do("PUBLISH", channel, SetContent(action, message, nil))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func Subscribe(channel string, handleMessage func(message []byte)) error {
+func Subscribe(channel, groupId string, handleMessage func(message []byte)) error {
 	conn := xtremepkg.RedisPool.Get()
 	defer conn.Close()
 
+	channel += fmt.Sprintf("-%s", groupId)
 	psc := redis.PubSubConn{Conn: conn}
 	if err := psc.Subscribe(channel); err != nil {
 		return err
@@ -163,9 +173,15 @@ func GetMessage(r *http.Request) []byte {
 	return r.Context().Value(WS_REQUEST_MESSAGE).([]byte)
 }
 
-func SetContent(event string, content interface{}) []byte {
+func SetContent(event string, content interface{}, processError error) []byte {
+	var errMessage string
+	if processError != nil {
+		errMessage = processError.Error()
+	}
+
 	data := map[string]interface{}{
 		"event":  event,
+		"error":  errMessage,
 		"result": content,
 	}
 
