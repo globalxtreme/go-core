@@ -502,7 +502,7 @@ func sendToMonitoringEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowS
 	}
 
 	err := xtremews.Publish(
-		xtremews.CHANNEL_WE_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING, fmt.Sprintf("%s-%s", workflow.Action, workflow.ReferenceId),
+		xtremews.WE_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING, fmt.Sprintf("%s-%s", workflow.Action, workflow.ReferenceId),
 		xtremews.WS_EVENT_MONITORING,
 		result)
 	if err != nil {

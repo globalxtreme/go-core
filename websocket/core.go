@@ -56,7 +56,7 @@ const WS_REQUEST_MESSAGE = "ws-request-message"
 
 // ** --- CHANNEL --- */
 
-const CHANNEL_WE_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING = "ws-request-message"
+const WE_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING = "ws-channel.async-workflow.monitoring"
 
 var (
 	Hub *hub
@@ -141,7 +141,7 @@ func Publish(channel, groupId string, action string, message interface{}) error 
 	conn := xtremepkg.RedisPool.Get()
 	defer conn.Close()
 
-	channel += fmt.Sprintf("-%s", groupId)
+	channel += fmt.Sprintf(":%s", groupId)
 	_, err := conn.Do("PUBLISH", channel, SetContent(action, message, nil))
 	if err != nil {
 		return err
@@ -153,7 +153,7 @@ func Subscribe(channel, groupId string, handleMessage func(message []byte)) erro
 	conn := xtremepkg.RedisPool.Get()
 	defer conn.Close()
 
-	channel += fmt.Sprintf("-%s", groupId)
+	channel += fmt.Sprintf(":%s", groupId)
 	psc := redis.PubSubConn{Conn: conn}
 	if err := psc.Subscribe(channel); err != nil {
 		return err
