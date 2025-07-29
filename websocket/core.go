@@ -1,7 +1,9 @@
 package xtremews
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
@@ -43,6 +45,7 @@ type WSOption struct {
 const WS_EVENT_RESPONSE = "response"
 const WS_EVENT_ROUTINE = "routine"
 const WS_EVENT_CONVERSATION = "conversation"
+const WS_EVENT_MONITORING = "monitoring"
 const WS_EVENT_ERROR = "error"
 const WS_EVENT_ACTION_CREATE = "action-create"
 const WS_EVENT_ACTION_UPDATE = "action-update"
@@ -52,11 +55,15 @@ const WS_EVENT_ACTION_DELETE = "action-delete"
 
 const WS_REQUEST_MESSAGE = "ws-request-message"
 
+// ** --- CHANNEL --- */
+
+const WS_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING = "ws-channel.async-workflow.monitoring"
+
 var (
 	Hub *hub
 )
 
-func Init() {
+func InitWebSocket() {
 	Hub = &hub{
 		Groups:     make(map[string]map[string]bool),
 		Rooms:      make(map[string]*websocket.Conn),
@@ -64,6 +71,8 @@ func Init() {
 		Register:   make(chan Subscription),
 		Unregister: make(chan Subscription),
 	}
+
+	go Run()
 }
 
 func Run() {
@@ -129,32 +138,56 @@ func Run() {
 	}
 }
 
-func Publish(channel string, action string, message interface{}) error {
-	conn := xtremepkg.RedisPool.Get()
+func Publish(channel, groupId string, action string, message interface{}) error {
+	conn := xtremepkg.RedisAsyncWorkflowPool.Get()
 	defer conn.Close()
 
-	_, err := conn.Do("PUBLISH", channel, SetContent(action, message))
+	channel += fmt.Sprintf(":%s", groupId)
+	_, err := conn.Do("PUBLISH", channel, SetContent(action, message, nil))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func Subscribe(channel string, handleMessage func(message []byte)) error {
-	conn := xtremepkg.RedisPool.Get()
+func Subscribe(ctx context.Context, channel, groupId string, handleMessage func(message []byte)) error {
+	conn := xtremepkg.RedisAsyncWorkflowPool.Get()
 	defer conn.Close()
 
 	psc := redis.PubSubConn{Conn: conn}
+	defer psc.Unsubscribe()
+
+	channel += fmt.Sprintf(":%s", groupId)
 	if err := psc.Subscribe(channel); err != nil {
 		return err
 	}
 
+	messageChan := make(chan []byte)
+	errChan := make(chan error)
+
+	go func() {
+		defer close(messageChan)
+		defer close(errChan)
+
+		for {
+			switch v := psc.Receive().(type) {
+			case redis.Message:
+				messageChan <- v.Data
+			case error:
+				errChan <- v
+				return
+			}
+		}
+	}()
+
 	for {
-		switch v := psc.Receive().(type) {
-		case redis.Message:
-			handleMessage(v.Data)
-		case error:
-			return v
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-messageChan:
+			handleMessage(msg)
+		case err := <-errChan:
+			return err
 		}
 	}
 }
@@ -163,9 +196,15 @@ func GetMessage(r *http.Request) []byte {
 	return r.Context().Value(WS_REQUEST_MESSAGE).([]byte)
 }
 
-func SetContent(event string, content interface{}) []byte {
+func SetContent(event string, content interface{}, processError error) []byte {
+	var errMessage string
+	if processError != nil {
+		errMessage = processError.Error()
+	}
+
 	data := map[string]interface{}{
 		"event":  event,
+		"error":  errMessage,
 		"result": content,
 	}
 

@@ -43,6 +43,9 @@ var (
 	// RedisPool --> Redis pool for open connection
 	RedisPool *redis.Pool
 
+	// RedisAsyncWorkflowPool --> Redis async workflow pool for open connection
+	RedisAsyncWorkflowPool *redis.Pool
+
 	// ServiceName -> Service name from .env
 	ServiceName string
 )
@@ -75,9 +78,14 @@ func InitDevMode() {
 	}
 }
 
-func InitLogRPC() func() {
+func InitLogRPC(force ...bool) func() {
+	isForce := false
+	if len(force) > 0 && force[0] == true {
+		isForce = true
+	}
+
 	addr := os.Getenv("GRPC_LOG_HOST")
-	if !DevMode && addr != "" {
+	if (isForce || !DevMode) && addr != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 		keepaliveParam := keepalive.ClientParameters{
@@ -127,6 +135,29 @@ func InitRedisPool() {
 
 			if os.Getenv("REDIS_PASSWORD") != "" {
 				if _, err = c.Do("AUTH", os.Getenv("REDIS_PASSWORD")); err != nil {
+					c.Close()
+					return nil, err
+				}
+			}
+
+			return c, nil
+		},
+	}
+}
+
+func InitRedisAsyncWorkflowPool() {
+	RedisAsyncWorkflowPool = &redis.Pool{
+		MaxIdle:     100,
+		MaxActive:   500,
+		IdleTimeout: 240 * time.Second,
+		Dial: func() (redis.Conn, error) {
+			c, err := redis.Dial("tcp", fmt.Sprintf("%s:%s", os.Getenv("REDIS_ASYNC_WORKFLOW_HOST"), os.Getenv("REDIS_ASYNC_WORKFLOW_PORT")))
+			if err != nil {
+				return nil, err
+			}
+
+			if os.Getenv("REDIS_ASYNC_WORKFLOW_PASSWORD") != "" {
+				if _, err = c.Do("AUTH", os.Getenv("REDIS_ASYNC_WORKFLOW_PASSWORD")); err != nil {
 					c.Close()
 					return nil, err
 				}
