@@ -1,6 +1,7 @@
 package xtremews
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
@@ -56,7 +57,7 @@ const WS_REQUEST_MESSAGE = "ws-request-message"
 
 // ** --- CHANNEL --- */
 
-const WE_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING = "ws-channel.async-workflow.monitoring"
+const WS_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING = "ws-channel.async-workflow.monitoring"
 
 var (
 	Hub *hub
@@ -138,7 +139,7 @@ func Run() {
 }
 
 func Publish(channel, groupId string, action string, message interface{}) error {
-	conn := xtremepkg.RedisPool.Get()
+	conn := xtremepkg.RedisAsyncWorkflowPool.Get()
 	defer conn.Close()
 
 	channel += fmt.Sprintf(":%s", groupId)
@@ -149,22 +150,44 @@ func Publish(channel, groupId string, action string, message interface{}) error 
 	return nil
 }
 
-func Subscribe(channel, groupId string, handleMessage func(message []byte)) error {
-	conn := xtremepkg.RedisPool.Get()
+func Subscribe(ctx context.Context, channel, groupId string, handleMessage func(message []byte)) error {
+	conn := xtremepkg.RedisAsyncWorkflowPool.Get()
 	defer conn.Close()
 
-	channel += fmt.Sprintf(":%s", groupId)
 	psc := redis.PubSubConn{Conn: conn}
+	defer psc.Unsubscribe()
+
+	channel += fmt.Sprintf(":%s", groupId)
 	if err := psc.Subscribe(channel); err != nil {
 		return err
 	}
 
+	messageChan := make(chan []byte)
+	errChan := make(chan error)
+
+	go func() {
+		defer close(messageChan)
+		defer close(errChan)
+
+		for {
+			switch v := psc.Receive().(type) {
+			case redis.Message:
+				messageChan <- v.Data
+			case error:
+				errChan <- v
+				return
+			}
+		}
+	}()
+
 	for {
-		switch v := psc.Receive().(type) {
-		case redis.Message:
-			handleMessage(v.Data)
-		case error:
-			return v
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg := <-messageChan:
+			handleMessage(msg)
+		case err := <-errChan:
+			return err
 		}
 	}
 }

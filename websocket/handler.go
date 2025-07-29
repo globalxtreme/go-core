@@ -7,7 +7,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -69,24 +68,18 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (int
 
 		if option.Channel != "" && len(option.Channel) > 0 {
 			go func() {
-				var once sync.Once
-
-				stop := make(chan struct{})
-				defer func() {
-					once.Do(func() {
-						close(stop)
-					})
-				}()
+				subsCtx, cancel := context.WithCancel(context.Background())
+				defer cancel()
 
 				go func() {
-					err := Subscribe(option.Channel, subscription.GroupId, func(message []byte) {
+					err := Subscribe(subsCtx, option.Channel, subscription.GroupId, func(message []byte) {
 						select {
 						case Hub.Broadcast <- Message{
 							MessageType: websocket.TextMessage,
 							RoomId:      subscription.RoomId,
 							Content:     message,
 						}:
-						case <-stop:
+						case <-subsCtx.Done():
 							xtremepkg.LogError(fmt.Sprintf("Unsubscribing from Redis for RoomId: %s", subscription.RoomId), false)
 							return
 						}
@@ -99,9 +92,7 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (int
 
 				select {
 				case <-subscription.StopChan:
-					once.Do(func() {
-						close(stop)
-					})
+					cancel()
 					xtremepkg.LogError(fmt.Sprintf("Stopping goroutine for RoomId on the subscribtion redis: %s", subscription.RoomId), false)
 					return
 				}
