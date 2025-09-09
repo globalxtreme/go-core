@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -154,7 +155,21 @@ func upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, *Subscrip
 		},
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	offered := websocket.Subprotocols(r)
+	var authToken string
+
+	prefix := "auth.jwt."
+	for _, p := range offered {
+		if strings.HasPrefix(p, prefix) {
+			authToken = p
+			break
+		}
+	}
+
+	respHeader := http.Header{}
+	respHeader.Set("Sec-WebSocket-Protocol", authToken)
+
+	conn, err := upgrader.Upgrade(w, r, respHeader)
 	if err != nil {
 		xtremepkg.LogError(fmt.Sprintf("Error upgrading connection: %v", err), true)
 		return nil, nil, nil
