@@ -2,6 +2,7 @@ package xtremews
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	"github.com/gorilla/mux"
@@ -10,13 +11,15 @@ import (
 	"time"
 )
 
-func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (interface{}, error), args ...WSOption) {
+func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request, opt *WSHandlerOption) (interface{}, error), args ...WSOption) {
 	router.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		conn, subscription, cleanup := upgrade(w, r)
 		if conn == nil {
 			return
 		}
 		defer cleanup()
+
+		ctx := context.WithValue(r.Context(), WS_REQUEST_SUBSCRIPTION, subscription)
 
 		conn.SetPingHandler(nil)
 
@@ -33,12 +36,13 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (int
 			defaultEvent = option.DefaultEvent
 		}
 
+		hdlOpt := WSHandlerOption{}
 		handleCallback := func(event string, r *http.Request) []byte {
-			result, err := cb(r)
+			result, err := cb(r, &hdlOpt)
 			return SetContent(event, result, err)
 		}
 
-		ctx := context.WithValue(r.Context(), WS_REQUEST_MESSAGE, message)
+		ctx = context.WithValue(ctx, WS_REQUEST_MESSAGE, message)
 		Hub.Broadcast <- Message{
 			MessageType: websocket.TextMessage,
 			RoomId:      subscription.RoomId,
@@ -67,36 +71,9 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (int
 		}
 
 		if option.Channel != "" && len(option.Channel) > 0 {
-			go func() {
-				subsCtx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-
-				go func() {
-					err := Subscribe(subsCtx, option.Channel, subscription.GroupId, func(message []byte) {
-						select {
-						case Hub.Broadcast <- Message{
-							MessageType: websocket.TextMessage,
-							RoomId:      subscription.RoomId,
-							Content:     message,
-						}:
-						case <-subsCtx.Done():
-							xtremepkg.LogError(fmt.Sprintf("Unsubscribing from Redis for RoomId: %s", subscription.RoomId), false)
-							return
-						}
-					})
-					if err != nil {
-						xtremepkg.LogError(fmt.Sprintf("Error subscribing to Redis: %v", err), true)
-						return
-					}
-				}()
-
-				select {
-				case <-subscription.StopChan:
-					cancel()
-					xtremepkg.LogError(fmt.Sprintf("Stopping goroutine for RoomId on the subscribtion redis: %s", subscription.RoomId), false)
-					return
-				}
-			}()
+			WSCustomSubscriptionEvent(subscription, option.Channel, func(msg map[string]interface{}) interface{} {
+				return msg
+			})
 		}
 
 		for {
@@ -106,7 +83,7 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (int
 				return
 			}
 
-			ctx = context.WithValue(r.Context(), WS_REQUEST_MESSAGE, message)
+			ctx = context.WithValue(ctx, WS_REQUEST_MESSAGE, message)
 			Hub.Broadcast <- Message{
 				MessageType: websocket.TextMessage,
 				GroupId:     subscription.GroupId,
@@ -115,6 +92,47 @@ func WSHandleFunc(router *mux.Router, path string, cb func(r *http.Request) (int
 			}
 		}
 	}).Methods("GET")
+}
+
+func WSCustomSubscriptionEvent(subscription *Subscription, channel string, cb func(msg map[string]interface{}) interface{}) {
+	go func() {
+		subsCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			err := Subscribe(subsCtx, channel, subscription.GroupId, func(message []byte) {
+				var messageMap map[string]interface{}
+				json.Unmarshal(message, &messageMap)
+
+				if resultMap, resOk := messageMap["result"].(map[string]interface{}); resOk {
+					validMessage := cb(resultMap)
+					if validMessage != nil {
+						select {
+						case Hub.Broadcast <- Message{
+							MessageType: websocket.TextMessage,
+							RoomId:      subscription.RoomId,
+							Content:     SetContent(WS_EVENT_MONITORING, validMessage, nil),
+						}:
+						case <-subsCtx.Done():
+							xtremepkg.LogError(fmt.Sprintf("Unsubscribing from Redis for RoomId: %s", subscription.RoomId), false)
+							return
+						}
+					}
+				}
+			})
+			if err != nil {
+				xtremepkg.LogError(fmt.Sprintf("Error subscribing to Redis: %v", err), true)
+				return
+			}
+		}()
+
+		select {
+		case <-subscription.StopChan:
+			cancel()
+			xtremepkg.LogError(fmt.Sprintf("Stopping goroutine for RoomId on the subscribtion redis: %s", subscription.RoomId), false)
+			return
+		}
+	}()
 }
 
 /** --- UNEXPORTED FUNCTIONS --- */

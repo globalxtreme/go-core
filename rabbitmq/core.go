@@ -112,6 +112,14 @@ func (cons RabbitMQMessageDeliveryStatus) Display(id int) string {
 
 type RabbitMQAsyncWorkflowStatus struct{}
 
+func (cons RabbitMQAsyncWorkflowStatus) InProgressIds() []int {
+	return []int{
+		RABBITMQ_ASYNC_WORKFLOW_STATUS_PENDING_ID,
+		RABBITMQ_ASYNC_WORKFLOW_STATUS_PROCESSING_ID,
+		RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR_ID,
+	}
+}
+
 func (cons RabbitMQAsyncWorkflowStatus) OptionIDNames() map[int]string {
 	return map[int]string{
 		RABBITMQ_ASYNC_WORKFLOW_STATUS_PENDING_ID:    RABBITMQ_ASYNC_WORKFLOW_STATUS_PENDING,
