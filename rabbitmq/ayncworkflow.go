@@ -141,6 +141,8 @@ func (flow *GXAsyncWorkflow) Push() {
 		log.Panicf("Unable to create workflow steps: %s", err.Error())
 	}
 
+	sendToMonitoringEvent(workflow)
+
 	pushWorkflowMessage(workflow.ID, flow.firstStep.Queue, flow.firstStep.Payload)
 }
 
@@ -357,7 +359,7 @@ func processingWorkflow(workflow *xtrememodel.RabbitMQAsyncWorkflow, workflowSte
 		}
 	}
 
-	sendToMonitoringEvent(*workflow, *workflowStep)
+	sendToMonitoringActionEvent(*workflow, *workflowStep)
 }
 
 func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtrememodel.RabbitMQAsyncWorkflowStep, result interface{}, forwardPayloads []AsyncWorkflowForwardPayloadResult) {
@@ -467,10 +469,28 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 		pushWorkflowMessage(workflow.ID, nextStep.Queue, payload)
 	}
 
-	sendToMonitoringEvent(workflow, workflowStep)
+	if workflow.StatusId == RABBITMQ_ASYNC_WORKFLOW_STATUS_SUCCESS_ID {
+		sendToMonitoringEvent(workflow)
+	}
+
+	sendToMonitoringActionEvent(workflow, workflowStep)
 }
 
-func sendToMonitoringEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtrememodel.RabbitMQAsyncWorkflowStep) {
+func sendToMonitoringEvent(workflow xtrememodel.RabbitMQAsyncWorkflow) {
+	err := xtremews.Publish(
+		xtremews.WS_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING, xtremews.WS_GROUP_ID_ASYNC_WORKFLOW_MONITORING_LIST,
+		xtremews.WS_EVENT_MONITORING,
+		map[string]interface{}{
+			"id":        workflow.ID,
+			"service":   workflow.ReferenceService,
+			"createdBy": workflow.CreatedBy,
+		})
+	if err != nil {
+		xtremepkg.LogError(fmt.Sprintf("Unable to send data to monitoring event. %s", err), true)
+	}
+}
+
+func sendToMonitoringActionEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtrememodel.RabbitMQAsyncWorkflowStep) {
 	result := map[string]interface{}{
 		"id":          workflow.ID,
 		"action":      workflow.Action,
@@ -506,7 +526,7 @@ func sendToMonitoringEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowS
 		xtremews.WS_EVENT_MONITORING,
 		result)
 	if err != nil {
-		xtremepkg.LogError(fmt.Sprintf("Unable to send data to monitoring event. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
+		xtremepkg.LogError(fmt.Sprintf("Unable to send data to monitoring by action event. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
 	}
 }
 
@@ -550,8 +570,9 @@ func failedWorkflow(errorMsg string, workflow *xtrememodel.RabbitMQAsyncWorkflow
 		}
 	}
 
-	if workflowIsValid && !workflowStepIsValid {
-		sendToMonitoringEvent(*workflow, *workflowStep)
+	if workflowIsValid && workflowStepIsValid {
+		sendToMonitoringEvent(*workflow)
+		sendToMonitoringActionEvent(*workflow, *workflowStep)
 	}
 }
 
