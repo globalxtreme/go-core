@@ -327,7 +327,7 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, body []byte) {
 	if workflowStep.StatusId != RABBITMQ_ASYNC_WORKFLOW_STATUS_SUCCESS_ID {
 		result, err = opt.Consumer.Consume(mqBody.Data)
 		if err != nil {
-			failedWorkflow(fmt.Sprintf("Process in action [%s] and step [%d] is failed", workflow.Action, workflowStep.StepOrder), err, &workflow, &workflowStep)
+			failedWorkflow(fmt.Sprintf("Process in action (%s) and step (%d) is failed", workflow.Action, workflowStep.StepOrder), err, &workflow, &workflowStep)
 			return
 		}
 	} else {
@@ -484,7 +484,7 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 
 		successMsg := workflow.SuccessMessage
 		if successMsg == "" {
-			successMsg = fmt.Sprintf("Process in action %s has been successfully", workflow.Action)
+			successMsg = fmt.Sprintf("Process in action (%s) has been successfully", workflow.Action)
 		}
 		pushToNotification(workflow, workflowStep, successMsg, successMsg)
 	}
