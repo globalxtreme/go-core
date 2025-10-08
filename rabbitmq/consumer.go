@@ -12,7 +12,7 @@ import (
 )
 
 type RabbitMQConsumerInterface interface {
-	Consume(message xtrememodel.RabbitMQMessage) (interface{}, error)
+	Consume(message xtrememodel.RabbitMQMessage) (interface{}, error, []byte)
 }
 
 type RabbitMQConsumeOpt struct {
@@ -204,13 +204,13 @@ func process(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, 
 	var message xtrememodel.RabbitMQMessage
 	err = RabbitMQSQL.First(&message, mqBody.MessageId).Error
 	if err != nil {
-		failed(connection, opt, mqBody, fmt.Sprintf("Get message data: %s", err), nil)
+		failed(connection, opt, mqBody, fmt.Sprintf("Get message data: %s", err.Error()), nil, nil)
 		return
 	}
 
-	result, err := opt.Consumer.Consume(message)
+	result, err, trace := opt.Consumer.Consume(message)
 	if err != nil {
-		failed(connection, opt, mqBody, fmt.Sprintf("Consume message is failed: %s", err), &message)
+		failed(connection, opt, mqBody, fmt.Sprintf("Consume message is failed: %s", err.Error()), trace, &message)
 		return
 	}
 
@@ -230,10 +230,10 @@ func finish(message xtrememodel.RabbitMQMessage) {
 	}
 }
 
-func failed(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, mqBody rabbitMQBody, errorMsg string, message *xtrememodel.RabbitMQMessage) {
+func failed(connection xtrememodel.RabbitMQConnection, opt RabbitMQConsumeOpt, mqBody rabbitMQBody, errorMsg string, trace []byte, message *xtrememodel.RabbitMQMessage) {
 	xtremepkg.LogError(errorMsg, true)
 
-	exceptionRes := map[string]interface{}{"message": errorMsg, "trace": ""}
+	exceptionRes := map[string]interface{}{"message": errorMsg, "trace": string(trace)}
 
 	payload, _ := json.Marshal(mqBody.Data)
 
