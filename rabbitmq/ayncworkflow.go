@@ -11,6 +11,7 @@ import (
 	"github.com/rabbitmq/amqp091-go"
 	"log"
 	"os/exec"
+	"runtime/debug"
 	"strconv"
 	"time"
 )
@@ -140,7 +141,13 @@ func (flow *GXAsyncWorkflow) Push() {
 
 		payload, ok := step.Payload.(map[string]interface{})
 		if ok {
-			workflowStep.Payload = (*xtrememodel.MapInterfaceColumn)(&payload)
+			if step.stepOrder == 1 {
+				workflowStep.Payload = (*xtrememodel.MapInterfaceColumn)(&payload)
+			} else {
+				workflowStep.ForwardPayload = (*xtrememodel.MapInterfaceColumn)(&map[string]interface{}{
+					flow.Action: payload,
+				})
+			}
 		}
 
 		workflowSteps = append(workflowSteps, workflowStep)
@@ -157,14 +164,16 @@ func (flow *GXAsyncWorkflow) Push() {
 }
 
 type AsyncWorkflowConsumerInterface interface {
+	setAction(action string)
 	setReferenceId(referenceId string)
 	setReferenceType(referenceType string)
 	setReferenceService(referenceService string)
 
+	GetAction() string
 	GetReferenceId() string
 	GetReferenceType() string
 	GetReferenceService() string
-	Consume(payload interface{}) (interface{}, error)
+	Consume(payload interface{}) (interface{}, error, []byte)
 	Response(payload interface{}, data ...interface{}) interface{}
 }
 
@@ -188,9 +197,14 @@ type asyncWorkflowBody struct {
 }
 
 type AsyncWorkflowConsumerBase struct {
+	action           string
 	referenceId      string
 	referenceType    string
 	referenceService string
+}
+
+func (b *AsyncWorkflowConsumerBase) setAction(action string) {
+	b.action = action
 }
 
 func (b *AsyncWorkflowConsumerBase) setReferenceId(referenceId string) {
@@ -203,6 +217,10 @@ func (b *AsyncWorkflowConsumerBase) setReferenceType(referenceType string) {
 
 func (b *AsyncWorkflowConsumerBase) setReferenceService(referenceService string) {
 	b.referenceService = referenceService
+}
+
+func (b *AsyncWorkflowConsumerBase) GetAction() string {
+	return b.action
 }
 
 func (b *AsyncWorkflowConsumerBase) GetReferenceId() string {
@@ -306,17 +324,18 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, body []byte) {
 	var workflow xtrememodel.RabbitMQAsyncWorkflow
 	err = RabbitMQSQL.First(&workflow, mqBody.WorkflowId).Error
 	if err != nil {
-		failedWorkflow("Get async workflow data is failed", err, nil, nil)
+		failedWorkflow("Get async workflow data is failed", err, debug.Stack(), nil, nil)
 		return
 	}
 
 	var workflowStep xtrememodel.RabbitMQAsyncWorkflowStep
 	err = RabbitMQSQL.Where("workflowId = ? AND queue = ?", mqBody.WorkflowId, opt.Queue).First(&workflowStep).Error
 	if err != nil {
-		failedWorkflow(fmt.Sprintf("Get async workflow step data %s is failed", opt.Queue), err, &workflow, nil)
+		failedWorkflow(fmt.Sprintf("Get async workflow step data (%s) is failed", opt.Queue), err, debug.Stack(), &workflow, nil)
 		return
 	}
 
+	opt.Consumer.setAction(workflow.Action)
 	opt.Consumer.setReferenceId(workflow.ReferenceId)
 	opt.Consumer.setReferenceType(workflow.ReferenceType)
 	opt.Consumer.setReferenceService(workflow.ReferenceService)
@@ -325,9 +344,11 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, body []byte) {
 
 	var result interface{}
 	if workflowStep.StatusId != RABBITMQ_ASYNC_WORKFLOW_STATUS_SUCCESS_ID {
-		result, err = opt.Consumer.Consume(mqBody.Data)
+		var trace []byte
+
+		result, err, trace = opt.Consumer.Consume(mqBody.Data)
 		if err != nil {
-			failedWorkflow(fmt.Sprintf("Process in action (%s) and step (%d) is failed", workflow.Action, workflowStep.StepOrder), err, &workflow, &workflowStep)
+			failedWorkflow(fmt.Sprintf("Process in action (%s) and step (%d) is failed", workflow.Action, workflowStep.StepOrder), err, trace, &workflow, &workflowStep)
 			return
 		}
 	} else {
@@ -468,11 +489,11 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 			if err != nil {
 				xtremepkg.LogError(fmt.Sprintf("Unable to update payload to next step. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
 			}
+		}
 
-			if nextStep.ForwardPayload != nil && len(*nextStep.ForwardPayload) > 0 {
-				for _, forwardPayload := range *nextStep.ForwardPayload {
-					remappingForwardPayload(forwardPayload, &payload)
-				}
+		if nextStep.ForwardPayload != nil && len(*nextStep.ForwardPayload) > 0 {
+			for _, forwardPayload := range *nextStep.ForwardPayload {
+				remappingForwardPayload(forwardPayload, &payload)
 			}
 		}
 
@@ -547,12 +568,12 @@ func sendToMonitoringActionEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, wor
 	}
 }
 
-func failedWorkflow(message string, internalMsg error, workflow *xtrememodel.RabbitMQAsyncWorkflow, workflowStep *xtrememodel.RabbitMQAsyncWorkflowStep) {
+func failedWorkflow(message string, err error, trace []byte, workflow *xtrememodel.RabbitMQAsyncWorkflow, workflowStep *xtrememodel.RabbitMQAsyncWorkflowStep) {
 	xtremepkg.LogError(message, true)
 
 	workflowStepIsValid := workflowStep != nil && workflowStep.ID > 0
 	if workflowStepIsValid && workflowStep.StatusId != RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR_ID {
-		exceptionRes := map[string]interface{}{"message": message, "internalMsg": internalMsg, "trace": ""}
+		exceptionRes := map[string]interface{}{"message": message, "internalMsg": err.Error(), "trace": string(trace)}
 
 		stepErrors := make([]map[string]interface{}, 0)
 		if workflowStep.Errors != nil {
@@ -595,7 +616,7 @@ func failedWorkflow(message string, internalMsg error, workflow *xtrememodel.Rab
 		if errTitle == "" {
 			errTitle = message
 		}
-		pushToNotification(*workflow, *workflowStep, errTitle, internalMsg.Error())
+		pushToNotification(*workflow, *workflowStep, errTitle, err.Error())
 	}
 }
 
@@ -657,6 +678,7 @@ func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtremem
 
 	api.NotificationPush(map[string]interface{}{
 		"blueprintCode": "async-workflow.admin",
+		"service":       workflow.ReferenceService,
 		"data": map[string]interface{}{
 			"title":       title,
 			"body":        body,
@@ -680,6 +702,7 @@ func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtremem
 
 		api.NotificationPush(map[string]interface{}{
 			"blueprintCode": "async-workflow.developer",
+			"service":       workflow.ReferenceService,
 			"data": map[string]interface{}{
 				"message": message,
 			},
