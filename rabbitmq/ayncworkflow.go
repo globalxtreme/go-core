@@ -472,7 +472,7 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 				}
 
 				if nextStep.Queue == forwardStep.Queue {
-					nextStep.ForwardPayload = (*xtrememodel.MapInterfaceColumn)(&forwardStepPayload)
+					nextStep.ForwardPayload = (*xtrememodel.MapInterfaceColumn)(&originForwardPayload)
 				}
 			}
 		}
