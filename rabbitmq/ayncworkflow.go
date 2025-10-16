@@ -676,16 +676,18 @@ func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtremem
 		return
 	}
 
-	api.NotificationPush(map[string]interface{}{
-		"blueprintCode": "async-workflow.admin",
-		"service":       workflow.ReferenceService,
-		"data": map[string]interface{}{
-			"title":       title,
-			"body":        body,
-			"recipientId": workflow.CreatedBy,
-			"deepLink":    "",
-		},
-	})
+	if workflow.CreatedBy != nil && *workflow.CreatedBy == "" {
+		api.NotificationPush(map[string]interface{}{
+			"blueprintCode": "async-workflow.admin",
+			"service":       workflow.ReferenceService,
+			"data": map[string]interface{}{
+				"title":       title,
+				"body":        body,
+				"recipientId": workflow.CreatedBy,
+				"deepLink":    "",
+			},
+		})
+	}
 
 	if step.StatusId == RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR_ID && step.Reprocessed >= 10 {
 		message := fmt.Sprintf("*ERROR ASA:* %d\n", workflow.ID)
