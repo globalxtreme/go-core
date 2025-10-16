@@ -676,7 +676,7 @@ func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtremem
 		return
 	}
 
-	if workflow.CreatedBy != nil && *workflow.CreatedBy == "" {
+	if workflow.CreatedBy != nil && *workflow.CreatedBy != "" {
 		api.NotificationPush(map[string]interface{}{
 			"blueprintCode": "async-workflow.admin",
 			"service":       workflow.ReferenceService,
