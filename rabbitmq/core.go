@@ -26,6 +26,8 @@ const RABBITMQ_ASYNC_WORKFLOW_STATUS_SUCCESS = "Success"
 const RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR_ID = 4
 const RABBITMQ_ASYNC_WORKFLOW_STATUS_ERROR = "Error"
 
+const RABBITMQ_CONF_ALLOW_RESEND_WORKFLOW_INTERVAL = "allow-resend-workflow-interval"
+
 var (
 	RabbitMQSQL  *gorm.DB
 	RabbitMQConf rabbitmqconf
