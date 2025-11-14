@@ -529,7 +529,7 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 		if successMsg == "" {
 			successMsg = fmt.Sprintf("Process in action (%s) has been successfully", workflow.Action)
 		}
-		pushToNotification(workflow, workflowStep, successMsg, successMsg)
+		pushToNotification(workflow, workflowStep, successMsg, successMsg, "success")
 	}
 
 	sendToMonitoringActionEvent(workflow, workflowStep, redisConn)
@@ -644,7 +644,7 @@ func failedWorkflow(redisConn redis.Conn, message string, errMsg error, trace []
 		if errTitle == "" {
 			errTitle = message
 		}
-		pushToNotification(*workflow, *workflowStep, errTitle, errMsg.Error())
+		pushToNotification(*workflow, *workflowStep, errTitle, errMsg.Error(), "error")
 	}
 }
 
@@ -697,7 +697,7 @@ func pushWorkflowMessage(workflowId uint, queue string, payload interface{}) {
 	}
 }
 
-func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtrememodel.RabbitMQAsyncWorkflowStep, title, body string) {
+func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtrememodel.RabbitMQAsyncWorkflowStep, title, body, status string) {
 	api, err := privateapi.NewBusinessWorkflowAPI()
 	if err != nil {
 		xtremepkg.LogError(fmt.Sprintf("Unable to create new business API: %s", err), true)
@@ -707,6 +707,7 @@ func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtremem
 	if workflow.CreatedBy != nil && *workflow.CreatedBy != "" {
 		api.NotificationPush(map[string]interface{}{
 			"blueprintCode": "async-workflow.admin",
+			"type":          status,
 			"service":       workflow.ReferenceService,
 			"data": map[string]interface{}{
 				"title":       title,
@@ -732,6 +733,7 @@ func pushToNotification(workflow xtrememodel.RabbitMQAsyncWorkflow, step xtremem
 
 		api.NotificationPush(map[string]interface{}{
 			"blueprintCode": "async-workflow.developer",
+			"type":          status,
 			"service":       workflow.ReferenceService,
 			"data": map[string]interface{}{
 				"message": message,
