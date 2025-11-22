@@ -70,7 +70,7 @@ func InitHost() {
 
 func InitDevMode(force ...bool) {
 	isDev := DevMode
-	if len(force) > 0 && force[0] == true {
+	if len(force) > 0 && force[0] {
 		isDev = true
 	}
 
