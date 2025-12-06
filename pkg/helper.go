@@ -1,6 +1,7 @@
 package xtremepkg
 
 import (
+	"fmt"
 	xtremeres "github.com/globalxtreme/go-core/v2/response"
 	"io"
 	"math/rand"
@@ -109,7 +110,7 @@ func GetMimeType(file multipart.File, handler *multipart.FileHeader, mimeType *s
 		buf := make([]byte, 512)
 		n, err := file.Read(buf)
 		if err != nil && err != io.EOF {
-			xtremeres.ErrXtremeUploadFile("Unable to reading file!!")
+			xtremeres.ErrXtremeUploadFile(fmt.Sprintf("Unable to reading file!! %s", err.Error()))
 		}
 
 		mimeTypeSystem := http.DetectContentType(buf[:n])
@@ -121,6 +122,11 @@ func GetMimeType(file multipart.File, handler *multipart.FileHeader, mimeType *s
 			case ".docx":
 				return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 			}
+		}
+
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			xtremeres.ErrXtremeUploadFile(fmt.Sprintf("Unable to reset file pointer: %s", err.Error()))
 		}
 
 		return mimeTypeSystem

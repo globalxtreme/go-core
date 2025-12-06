@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type hub struct {
@@ -164,43 +165,58 @@ func Publish(channel, groupId string, action string, message interface{}, connAr
 }
 
 func Subscribe(ctx context.Context, channel, groupId string, handleMessage func(message []byte)) error {
-	conn := xtremepkg.RedisAsyncWorkflowPool.Get()
-	defer conn.Close()
-
-	psc := redis.PubSubConn{Conn: conn}
-	defer psc.Unsubscribe()
-
-	channel += fmt.Sprintf(":%s", groupId)
-	if err := psc.Subscribe(channel); err != nil {
-		return err
-	}
-
-	messageChan := make(chan []byte)
-	errChan := make(chan error)
-
-	go func() {
-		defer close(messageChan)
-		defer close(errChan)
-
-		for {
-			switch v := psc.Receive().(type) {
-			case redis.Message:
-				messageChan <- v.Data
-			case error:
-				errChan <- v
-				return
-			}
-		}
-	}()
+	retryDelay := time.Second * 3
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case msg := <-messageChan:
-			handleMessage(msg)
+		default:
+		}
+
+		conn := xtremepkg.RedisAsyncWorkflowPool.Get()
+		psc := redis.PubSubConn{Conn: conn}
+
+		fullChannel := fmt.Sprintf("%s:%s", channel, groupId)
+		if err := psc.Subscribe(fullChannel); err != nil {
+			conn.Close()
+
+			xtremepkg.LogError(fmt.Sprintf("Failed to subscribe: %v", err), true)
+			time.Sleep(retryDelay)
+
+			continue
+		}
+
+		errChan := make(chan error, 1)
+		go func() {
+			defer close(errChan)
+			for {
+				switch v := psc.Receive().(type) {
+				case redis.Message:
+					handleMessage(v.Data)
+				case redis.Subscription:
+					// ignore
+				case error:
+					errChan <- v
+					return
+				}
+			}
+		}()
+
+		select {
+		case <-ctx.Done():
+			psc.Unsubscribe()
+			conn.Close()
+
+			return nil
 		case err := <-errChan:
-			return err
+			psc.Unsubscribe()
+			conn.Close()
+
+			xtremepkg.LogError(fmt.Sprintf("Redis subscription error: %v — reconnecting...", err), true)
+			time.Sleep(retryDelay)
+
+			continue // ⬅️ auto reconnect
 		}
 	}
 }

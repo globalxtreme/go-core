@@ -201,7 +201,7 @@ func MultipleTransactions(dbs map[string]*gorm.DB, fc func(txs map[string]*gorm.
 
 func postgresqlConnection(conn DBConf) *gorm.DB {
 	if len(conn.TimeZone) == 0 {
-		conn.TimeZone = "Asia/Kuala_Lumpur"
+		conn.TimeZone = "Asia/Makassar"
 	}
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=%s",
