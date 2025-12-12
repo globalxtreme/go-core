@@ -752,29 +752,39 @@ func remappingForwardPayload(forwardPayload any, originStepPayload *map[string]a
 		return
 	}
 
-	for fKey, fPayload := range payloadMap {
-		switch val := fPayload.(type) {
+	for key, val := range payloadMap {
+		if existing, exists := (*originStepPayload)[key]; exists {
+			existingMap, okExisting := existing.(map[string]any)
+			newMap, okNew := val.(map[string]any)
+
+			if okExisting && okNew {
+				remappingForwardPayload(newMap, &existingMap)
+				continue
+			}
+		}
+
+		switch typedVal := val.(type) {
 		case map[string]any:
 			newMap := make(map[string]any)
-			(*originStepPayload)[fKey] = newMap
-			remappingForwardPayload(val, &newMap)
+			remappingForwardPayload(typedVal, &newMap)
+			(*originStepPayload)[key] = newMap
 
 		case []any:
-			newSlice := make([]any, len(val))
-			for i, item := range val {
-				switch itemVal := item.(type) {
+			newSlice := make([]any, len(typedVal))
+			for i, item := range typedVal {
+				switch itemTyped := item.(type) {
 				case map[string]any:
 					nestedMap := make(map[string]any)
-					remappingForwardPayload(itemVal, &nestedMap)
+					remappingForwardPayload(itemTyped, &nestedMap)
 					newSlice[i] = nestedMap
 				default:
-					newSlice[i] = itemVal
+					newSlice[i] = itemTyped
 				}
 			}
-			(*originStepPayload)[fKey] = newSlice
+			(*originStepPayload)[key] = newSlice
 
 		default:
-			(*originStepPayload)[fKey] = val
+			(*originStepPayload)[key] = typedVal
 		}
 	}
 }
