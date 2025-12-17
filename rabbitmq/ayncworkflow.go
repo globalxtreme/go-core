@@ -166,7 +166,7 @@ func (flow *GXAsyncWorkflow) Push() {
 
 	sendToMonitoringEvent(workflow, redisConn)
 
-	pushWorkflowMessage(workflow.ID, flow.firstStep.Queue, flow.firstStep.Payload)
+	pushWorkflowMessage(workflow.ID, flow.firstStep.stepOrder, flow.firstStep.Queue, flow.firstStep.Payload)
 }
 
 type AsyncWorkflowConsumerInterface interface {
@@ -199,6 +199,7 @@ type AsyncWorkflowConsumeOpt struct {
 
 type asyncWorkflowBody struct {
 	WorkflowId uint `json:"workflowId"`
+	StepOrder  int  `json:"stepOrder"`
 	Data       any  `json:"data"`
 }
 
@@ -338,7 +339,8 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, redisConn redis.Conn, body []b
 	}
 
 	var workflowStep xtrememodel.RabbitMQAsyncWorkflowStep
-	err = RabbitMQSQL.Where("workflowId = ? AND queue = ?", mqBody.WorkflowId, opt.Queue).First(&workflowStep).Error
+	err = RabbitMQSQL.Where("workflowId = ? AND queue = ? AND stepOrder = ?", mqBody.WorkflowId, opt.Queue, mqBody.StepOrder).
+		First(&workflowStep).Error
 	if err != nil {
 		failedWorkflow(redisConn, fmt.Sprintf("Get async workflow step data (%s) is failed", opt.Queue), err, debug.Stack(), &workflow, nil)
 		return
@@ -519,7 +521,7 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 			}
 		}
 
-		pushWorkflowMessage(workflow.ID, nextStep.Queue, payload)
+		pushWorkflowMessage(workflow.ID, nextStep.StepOrder, nextStep.Queue, payload)
 	}
 
 	if workflow.StatusId == RABBITMQ_ASYNC_WORKFLOW_STATUS_SUCCESS_ID {
@@ -648,7 +650,7 @@ func failedWorkflow(redisConn redis.Conn, message string, errMsg error, trace []
 	}
 }
 
-func pushWorkflowMessage(workflowId uint, queue string, payload interface{}) {
+func pushWorkflowMessage(workflowId uint, stepOrder int, queue string, payload interface{}) {
 	conn, ok := RabbitMQConnectionDial[RABBITMQ_CONNECTION_GLOBAL]
 	if !ok {
 		log.Panicf("Please init rabbitmq connection first")
@@ -666,6 +668,7 @@ func pushWorkflowMessage(workflowId uint, queue string, payload interface{}) {
 	body, _ := json.Marshal(map[string]interface{}{
 		"data":       payload,
 		"workflowId": workflowId,
+		"stepOrder":  stepOrder,
 	})
 
 	q, err := ch.QueueDeclare(
