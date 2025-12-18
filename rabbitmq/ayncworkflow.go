@@ -188,8 +188,9 @@ type AsyncWorkflowForwardPayloadInterface interface {
 }
 
 type AsyncWorkflowForwardPayloadResult struct {
-	Queue   string
-	Payload interface{}
+	Queue     string
+	StepOrder int
+	Payload   interface{}
 }
 
 type AsyncWorkflowConsumeOpt struct {
@@ -465,7 +466,8 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 				continue
 			}
 
-			forwardPayloadMap[forwardPayload.Queue] = forwardPayload
+			forwardKey := fmt.Sprintf("%s-%d", forwardPayload.Queue, forwardPayload.StepOrder)
+			forwardPayloadMap[forwardKey] = forwardPayload
 			forwardPayloadQueues = append(forwardPayloadQueues, forwardPayload.Queue)
 		}
 
@@ -483,7 +485,8 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 					forwardStepPayload = firstForwardStepPayload
 				}
 
-				remappingForwardPayload(forwardPayloadMap[forwardStep.Queue].Payload, &forwardStepPayload)
+				forwardKey := fmt.Sprintf("%s-%d", forwardStep.Queue, forwardStep.StepOrder)
+				remappingForwardPayload(forwardPayloadMap[forwardKey].Payload, &forwardStepPayload)
 
 				originForwardPayload[workflowStep.Queue] = forwardStepPayload
 
