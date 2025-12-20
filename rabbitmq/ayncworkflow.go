@@ -466,7 +466,11 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 				continue
 			}
 
-			forwardKey := fmt.Sprintf("%s-%d", forwardPayload.Queue, forwardPayload.StepOrder)
+			forwardKey := forwardPayload.Queue
+			if forwardPayload.StepOrder > 0 {
+				forwardKey = fmt.Sprintf("%s-%d", forwardPayload.Queue, forwardPayload.StepOrder)
+			}
+
 			forwardPayloadMap[forwardKey] = forwardPayload
 			forwardPayloadQueues = append(forwardPayloadQueues, forwardPayload.Queue)
 		}
@@ -485,8 +489,15 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 					forwardStepPayload = firstForwardStepPayload
 				}
 
+				var newForwardPayload interface{}
 				forwardKey := fmt.Sprintf("%s-%d", forwardStep.Queue, forwardStep.StepOrder)
-				remappingForwardPayload(forwardPayloadMap[forwardKey].Payload, &forwardStepPayload)
+				if forwardPayloadMapContent, ok := forwardPayloadMap[forwardStep.Queue]; ok {
+					newForwardPayload = forwardPayloadMapContent.Payload
+				} else if forwardPayloadMapContent, ok := forwardPayloadMap[forwardKey]; ok {
+					newForwardPayload = forwardPayloadMapContent.Payload
+				}
+
+				remappingForwardPayload(newForwardPayload, &forwardStepPayload)
 
 				originForwardPayload[workflowStep.Queue] = forwardStepPayload
 
