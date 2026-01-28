@@ -266,6 +266,8 @@ func ConsumeWorkflow(options []AsyncWorkflowConsumeOpt) {
 	}
 	defer conn.Close()
 
+	maxRequeue := 5
+
 	for _, opt := range options {
 		opt := opt
 
@@ -321,7 +323,34 @@ func ConsumeWorkflow(options []AsyncWorkflowConsumeOpt) {
 						go func() {
 							err = processWorkflow(opt, redisConn, d.Body)
 							if err != nil {
-								d.Nack(false, true)
+								requeue := getRequeueCount(d)
+								if requeue >= maxRequeue {
+									d.Nack(false, false)
+								} else {
+									headers := d.Headers
+									if headers == nil {
+										headers = amqp091.Table{}
+									}
+									headers["x-retry"] = requeue + 1
+									headers["x-delay"] = int32(10000) // 10 * (1000 milliseconds)
+
+									correlationId, _ := exec.Command("uuidgen").Output()
+									_ = ch.Publish(
+										"",
+										opt.Queue,
+										false,
+										false,
+										amqp091.Publishing{
+											Headers:       headers,
+											Body:          d.Body,
+											ContentType:   d.ContentType,
+											CorrelationId: string(correlationId),
+											DeliveryMode:  amqp091.Persistent,
+										},
+									)
+
+									d.Ack(false)
+								}
 							} else {
 								d.Ack(false)
 							}
@@ -858,4 +887,20 @@ func getAllowResendInterval(conn redis.Conn) time.Duration {
 	}
 
 	return time.Duration(intervalInt) * time.Minute
+}
+
+func getRequeueCount(d amqp091.Delivery) int {
+	if d.Headers == nil {
+		return 0
+	}
+
+	if v, ok := d.Headers["x-retry"].(int32); ok {
+		return int(v)
+	}
+
+	if v, ok := d.Headers["x-retry"].(int64); ok {
+		return int(v)
+	}
+
+	return 0
 }
