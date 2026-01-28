@@ -3,6 +3,7 @@ package xtremerabbitmq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/globalxtreme/go-core/v2/api/privateapi"
 	xtrememodel "github.com/globalxtreme/go-core/v2/model"
@@ -265,86 +266,138 @@ func ConsumeWorkflow(options []AsyncWorkflowConsumeOpt) {
 	}
 	defer conn.Close()
 
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Panicf("Failed to open a channel: %s", err)
-	}
-	defer ch.Close()
-
-	redisConn := xtremepkg.RedisAsyncWorkflowPool.Get()
-	defer redisConn.Close()
-
-	var forever chan struct{}
+	maxRequeue := 5
 
 	for _, opt := range options {
-		q, err := ch.QueueDeclare(
-			opt.Queue,
-			true,
-			false,
-			false,
-			false,
-			nil,
-		)
-		if err != nil {
-			log.Panicf("Failed to declare a queue: %s", err)
-		}
+		opt := opt
 
-		err = ch.Qos(
-			1,
-			0,
-			false,
-		)
-		if err != nil {
-			log.Panicf("Failed to set QoS: %s", err)
-		}
-
-		msgs, err := ch.Consume(
-			q.Name,
-			"",
-			true,
-			false,
-			false,
-			false,
-			nil,
-		)
-		if err != nil {
-			log.Panicf("Failed to register a consumer: %s", err)
-		}
-
-		go func() {
-			for d := range msgs {
-				processWorkflow(opt, redisConn, d.Body)
+		go func(opt AsyncWorkflowConsumeOpt) {
+			ch, err := conn.Channel()
+			if err != nil {
+				log.Panicf("Failed to open a channel: %s", err)
 			}
-		}()
+
+			q, err := ch.QueueDeclare(
+				opt.Queue,
+				true,
+				false,
+				false,
+				false,
+				nil,
+			)
+			if err != nil {
+				log.Panicf("Failed to declare a queue: %s", err)
+			}
+
+			workerCount := 10
+			err = ch.Qos(
+				workerCount,
+				0,
+				false,
+			)
+			if err != nil {
+				log.Panicf("Failed to set QoS: %s", err)
+			}
+
+			msgs, err := ch.Consume(
+				q.Name,
+				"",
+				false,
+				false,
+				false,
+				false,
+				nil,
+			)
+			if err != nil {
+				log.Panicf("Failed to register a consumer: %s", err)
+			}
+
+			jobs := make(chan amqp091.Delivery, workerCount)
+
+			for i := 0; i < workerCount; i++ {
+				redisConn := xtremepkg.RedisAsyncWorkflowPool.Get()
+				defer redisConn.Close()
+
+				go func() {
+					for d := range jobs {
+						go func() {
+							err = processWorkflow(opt, redisConn, d.Body)
+							if err != nil {
+								requeue := getRequeueCount(d)
+								if requeue >= maxRequeue {
+									d.Nack(false, false)
+								} else {
+									headers := d.Headers
+									if headers == nil {
+										headers = amqp091.Table{}
+									}
+									headers["x-retry"] = requeue + 1
+									headers["x-delay"] = int32(10000) // 10 * (1000 milliseconds)
+
+									correlationId, _ := exec.Command("uuidgen").Output()
+									_ = ch.Publish(
+										"",
+										opt.Queue,
+										false,
+										false,
+										amqp091.Publishing{
+											Headers:       headers,
+											Body:          d.Body,
+											ContentType:   d.ContentType,
+											CorrelationId: string(correlationId),
+											DeliveryMode:  amqp091.Persistent,
+										},
+									)
+
+									d.Ack(false)
+								}
+							} else {
+								d.Ack(false)
+							}
+						}()
+					}
+				}()
+			}
+
+			for d := range msgs {
+				jobs <- d
+			}
+		}(opt)
+
 	}
 
 	log.Printf(" [*] Waiting for logs. To exit press CTRL+C")
-	<-forever
+	select {}
 }
 
-func processWorkflow(opt AsyncWorkflowConsumeOpt, redisConn redis.Conn, body []byte) {
+func processWorkflow(opt AsyncWorkflowConsumeOpt, redisConn redis.Conn, body []byte) error {
 	log.Printf("CONSUMING: %s %s", printMessage(opt.Queue), time.DateTime)
 
 	var mqBody asyncWorkflowBody
 	err := json.Unmarshal(body, &mqBody)
 	if err != nil {
-		xtremepkg.LogError(fmt.Sprintf("Error unmarshalling: %s", err), true)
-		return
+		errMsg := fmt.Sprintf("Error unmarshalling: %s", err)
+
+		xtremepkg.LogError(errMsg, true)
+		return errors.New(errMsg)
 	}
 
 	var workflow xtrememodel.RabbitMQAsyncWorkflow
 	err = RabbitMQSQL.First(&workflow, mqBody.WorkflowId).Error
 	if err != nil {
-		failedWorkflow(redisConn, "Get async workflow data is failed", err, debug.Stack(), nil, nil)
-		return
+		errMsg := "Get async workflow data is failed"
+		failedWorkflow(redisConn, errMsg, err, debug.Stack(), nil, nil)
+		return errors.New(errMsg)
 	}
 
 	var workflowStep xtrememodel.RabbitMQAsyncWorkflowStep
 	err = RabbitMQSQL.Where("workflowId = ? AND queue = ? AND stepOrder = ?", mqBody.WorkflowId, opt.Queue, mqBody.StepOrder).
 		First(&workflowStep).Error
 	if err != nil {
-		failedWorkflow(redisConn, fmt.Sprintf("Get async workflow step data (%s) is failed", opt.Queue), err, debug.Stack(), &workflow, nil)
-		return
+		errMsg := fmt.Sprintf("Get async workflow step data (%s) is failed", opt.Queue)
+
+		failedWorkflow(redisConn, errMsg, err, debug.Stack(), &workflow, nil)
+		return errors.New(errMsg)
 	}
 
 	opt.Consumer.setAction(workflow.Action)
@@ -360,8 +413,10 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, redisConn redis.Conn, body []b
 
 		result, err, trace = opt.Consumer.Consume(mqBody.Data)
 		if err != nil {
-			failedWorkflow(redisConn, fmt.Sprintf("Process in action (%s) and step (%d) is failed", workflow.Action, workflowStep.StepOrder), err, trace, &workflow, &workflowStep)
-			return
+			errMsg := fmt.Sprintf("Process in action (%s) and step (%d) is failed", workflow.Action, workflowStep.StepOrder)
+
+			failedWorkflow(redisConn, errMsg, err, trace, &workflow, &workflowStep)
+			return errors.New(errMsg)
 		}
 	} else {
 		result = opt.Consumer.Response(mqBody.Data)
@@ -375,6 +430,8 @@ func processWorkflow(opt AsyncWorkflowConsumeOpt, redisConn redis.Conn, body []b
 	finishWorkflow(workflow, workflowStep, redisConn, result, forwardPayloads)
 
 	log.Printf("%-10s %s %s", "SUCCESS:", printMessage(opt.Queue), time.DateTime)
+
+	return nil
 }
 
 func processingWorkflow(workflow *xtrememodel.RabbitMQAsyncWorkflow, workflowStep *xtrememodel.RabbitMQAsyncWorkflowStep, redisConn redis.Conn) {
@@ -830,4 +887,20 @@ func getAllowResendInterval(conn redis.Conn) time.Duration {
 	}
 
 	return time.Duration(intervalInt) * time.Minute
+}
+
+func getRequeueCount(d amqp091.Delivery) int {
+	if d.Headers == nil {
+		return 0
+	}
+
+	if v, ok := d.Headers["x-retry"].(int32); ok {
+		return int(v)
+	}
+
+	if v, ok := d.Headers["x-retry"].(int64); ok {
+		return int(v)
+	}
+
+	return 0
 }
