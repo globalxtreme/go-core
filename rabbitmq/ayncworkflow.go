@@ -315,46 +315,44 @@ func ConsumeWorkflow(options []AsyncWorkflowConsumeOpt) {
 			jobs := make(chan amqp091.Delivery, workerCount)
 
 			for i := 0; i < workerCount; i++ {
-				redisConn := xtremepkg.RedisAsyncWorkflowPool.Get()
-				defer redisConn.Close()
-
 				go func() {
 					for d := range jobs {
-						go func() {
-							err = processWorkflow(opt, redisConn, d.Body)
-							if err != nil {
-								requeue := getRequeueCount(d)
-								if requeue >= maxRequeue {
-									d.Nack(false, false)
-								} else {
-									headers := d.Headers
-									if headers == nil {
-										headers = amqp091.Table{}
-									}
-									headers["x-retry"] = requeue + 1
-									headers["x-delay"] = int32(10000) // 10 * (1000 milliseconds)
+						redisConn := xtremepkg.RedisAsyncWorkflowPool.Get()
+						err = processWorkflow(opt, redisConn, d.Body)
+						redisConn.Close()
 
-									correlationId, _ := exec.Command("uuidgen").Output()
-									_ = ch.Publish(
-										"",
-										opt.Queue,
-										false,
-										false,
-										amqp091.Publishing{
-											Headers:       headers,
-											Body:          d.Body,
-											ContentType:   d.ContentType,
-											CorrelationId: string(correlationId),
-											DeliveryMode:  amqp091.Persistent,
-										},
-									)
-
-									d.Ack(false)
-								}
+						if err != nil {
+							requeue := getRequeueCount(d)
+							if requeue >= maxRequeue {
+								d.Nack(false, false)
 							} else {
+								headers := d.Headers
+								if headers == nil {
+									headers = amqp091.Table{}
+								}
+								headers["x-retry"] = requeue + 1
+								headers["x-delay"] = int32(10000) // 10 * (1000 milliseconds)
+
+								correlationId, _ := exec.Command("uuidgen").Output()
+								_ = ch.Publish(
+									"",
+									opt.Queue,
+									false,
+									false,
+									amqp091.Publishing{
+										Headers:       headers,
+										Body:          d.Body,
+										ContentType:   d.ContentType,
+										CorrelationId: string(correlationId),
+										DeliveryMode:  amqp091.Persistent,
+									},
+								)
+
 								d.Ack(false)
 							}
-						}()
+						} else {
+							d.Ack(false)
+						}
 					}
 				}()
 			}
@@ -609,20 +607,47 @@ func finishWorkflow(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtr
 }
 
 func sendToMonitoringEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, redisConn redis.Conn) {
-	err := xtremews.Publish(
-		xtremews.WS_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING, xtremews.WS_GROUP_ID_ASYNC_WORKFLOW_MONITORING_LIST,
-		xtremews.WS_EVENT_MONITORING,
-		map[string]interface{}{
-			"id":        workflow.ID,
-			"service":   workflow.ReferenceService,
-			"createdBy": workflow.CreatedBy,
-		}, redisConn)
+	var err error
+
+	isRetry := false
+	maxErr := 3
+	for i := 1; i <= maxErr; i++ {
+		publishToEvent := func(redisConn ...redis.Conn) error {
+			return xtremews.Publish(
+				xtremews.WS_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING, xtremews.WS_GROUP_ID_ASYNC_WORKFLOW_MONITORING_LIST,
+				xtremews.WS_EVENT_MONITORING,
+				map[string]interface{}{
+					"id":            workflow.ID,
+					"service":       workflow.ReferenceService,
+					"referenceId":   workflow.ReferenceId,
+					"referenceType": workflow.ReferenceType,
+					"createdBy":     workflow.CreatedBy,
+				}, redisConn...)
+		}
+
+		if isRetry {
+			err = publishToEvent()
+		} else {
+			err = publishToEvent(redisConn)
+		}
+
+		if err == nil {
+			return
+		} else {
+			isRetry = true
+
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
 	if err != nil {
 		xtremepkg.LogError(fmt.Sprintf("Unable to send data to monitoring event. %s", err), true)
 	}
 }
 
 func sendToMonitoringActionEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, workflowStep xtrememodel.RabbitMQAsyncWorkflowStep, redisConn redis.Conn) {
+	var err error
+
 	var allowResendAt interface{}
 	if workflow.AllowResendAt != nil {
 		allowResendAt = workflow.AllowResendAt.Format("02/01/2006 15:04:05")
@@ -660,12 +685,33 @@ func sendToMonitoringActionEvent(workflow xtrememodel.RabbitMQAsyncWorkflow, wor
 		},
 	}
 
-	err := xtremews.Publish(
-		xtremews.WS_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING, fmt.Sprintf("%s-%s", workflow.Action, workflow.ReferenceId),
-		xtremews.WS_EVENT_MONITORING,
-		result, redisConn)
+	isRetry := false
+	maxErr := 3
+	for i := 1; i <= maxErr; i++ {
+		publishToEvent := func(redisConn ...redis.Conn) error {
+			return xtremews.Publish(
+				xtremews.WS_CHANNEL_MESSAGE_BROKER_ASYNC_WORKFLOW_MONITORING, fmt.Sprintf("%s-%s", workflow.Action, workflow.ReferenceId),
+				xtremews.WS_EVENT_MONITORING,
+				result, redisConn...)
+		}
+
+		if isRetry {
+			err = publishToEvent()
+		} else {
+			err = publishToEvent(redisConn)
+		}
+
+		if err == nil {
+			return
+		} else {
+			isRetry = true
+
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
 	if err != nil {
-		xtremepkg.LogError(fmt.Sprintf("Unable to send data to monitoring by action event. Step Order (%d): %s", (workflowStep.StepOrder+1), err), true)
+		xtremepkg.LogError(fmt.Sprintf("Unable to send data to monitoring by action event. Step Order (%d): %s", workflowStep.StepOrder, err.Error()), true)
 	}
 }
 
