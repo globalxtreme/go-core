@@ -165,9 +165,9 @@ func (flow *GXAsyncWorkflow) Push() {
 		log.Panicf("Unable to create workflow steps: %s", err.Error())
 	}
 
-	sendToMonitoringEvent(workflow, redisConn)
-
 	pushWorkflowMessage(workflow.ID, flow.firstStep.stepOrder, flow.firstStep.Queue, flow.firstStep.Payload)
+
+	sendToMonitoringEvent(workflow, redisConn)
 }
 
 type AsyncWorkflowConsumerInterface interface {
@@ -768,9 +768,9 @@ func failedWorkflow(redisConn redis.Conn, message string, errMsg error, trace []
 }
 
 func pushWorkflowMessage(workflowId uint, stepOrder int, queue string, payload interface{}) {
-	conn, ok := RabbitMQConnectionDial[RABBITMQ_CONNECTION_GLOBAL]
-	if !ok {
-		log.Panicf("Please init rabbitmq connection first")
+	conn, err := getRabbitMQASAConnection()
+	if err != nil {
+		log.Panicf("Unable to get rabbitmq connection. %s", err.Error())
 	}
 
 	ch, err := conn.Channel()
@@ -949,4 +949,23 @@ func getRequeueCount(d amqp091.Delivery) int {
 	}
 
 	return 0
+}
+
+func getRabbitMQASAConnection() (*amqp091.Connection, error) {
+	conn := RabbitMQConnectionDial[RABBITMQ_CONNECTION_GLOBAL]
+
+	if conn == nil || conn.IsClosed() {
+		conf := RabbitMQConf.Connection[RABBITMQ_CONNECTION_GLOBAL]
+
+		newConn, err := amqp091.Dial(fmt.Sprintf("amqp://%s:%s@%s:%s/",
+			conf.Username, conf.Password, conf.Host, conf.Port))
+		if err != nil {
+			return nil, err
+		}
+
+		RabbitMQConnectionDial[RABBITMQ_CONNECTION_GLOBAL] = newConn
+		return newConn, nil
+	}
+
+	return conn, nil
 }
