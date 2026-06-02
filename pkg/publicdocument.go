@@ -30,7 +30,6 @@ type PublicDocument interface {
 func NewPublicDocument() PublicDocument {
 	return &publicDocument{
 		baseURL:    os.Getenv("PUBLIC_DOCUMENT_BASE_URL"),
-		baseRoute:  os.Getenv("PUBLIC_DOCUMENT_BASE_ROUTE"),
 		encryptKey: []byte(os.Getenv("PUBLIC_DOCUMENT_ENCRYPT_KEY")),
 		signKey:    []byte(os.Getenv("PUBLIC_DOCUMENT_SIGN_KEY")),
 	}
@@ -38,7 +37,6 @@ func NewPublicDocument() PublicDocument {
 
 type publicDocument struct {
 	baseURL    string
-	baseRoute  string
 	encryptKey []byte
 	signKey    []byte
 }
@@ -49,7 +47,7 @@ func (ec *publicDocument) GenerateLink(docType string, payload *PublicDocumentPa
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/%s/%s/%s", ec.baseURL, ec.baseRoute, docType, token), nil
+	return fmt.Sprintf("%s/%s/%s", ec.baseURL, docType, token), nil
 }
 
 func (ec *publicDocument) Encrypt(payload any) (string, error) {
