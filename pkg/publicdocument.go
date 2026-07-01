@@ -76,12 +76,22 @@ func (ec *publicDocument) Encrypt(payload any) (string, error) {
 	encodedData := base64.RawURLEncoding.EncodeToString(ciphertext)
 
 	signature := ec.calculateHMAC(encodedData)
+	token := encodedData + "." + signature
 
-	return fmt.Sprintf("%s--%s", encodedData, signature), nil
+	encryptedToken := base64.RawURLEncoding.EncodeToString([]byte(token))
+
+	return encryptedToken, nil
 }
 
 func (ec *publicDocument) Decrypt(token string, payload *PublicDocumentPayload) error {
-	parts := strings.Split(token, "--")
+	tokenBytes, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return fmt.Errorf("base64 decode token error: %w", err)
+	}
+
+	decodedToken := string(tokenBytes)
+
+	parts := strings.Split(decodedToken, ".")
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid token format")
 	}
