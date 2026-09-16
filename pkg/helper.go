@@ -3,6 +3,7 @@ package xtremepkg
 import (
 	"fmt"
 	xtremeres "github.com/globalxtreme/go-core/v2/response"
+	"google.golang.org/grpc/status"
 	"io"
 	"math/rand"
 	"mime/multipart"
@@ -14,6 +15,10 @@ import (
 	"strings"
 	"time"
 )
+
+type Numeric interface {
+	uint | int | int8 | int16 | int32 | int64 | float32 | float64
+}
 
 func RandomString(length int) string {
 	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -80,6 +85,26 @@ func StringToArrayInt(text string) []int {
 		if word != "" {
 			number, _ := strconv.Atoi(word)
 			result = append(result, number)
+		}
+	}
+
+	return result
+}
+
+func StringToArrayNumeric[N Numeric](text string) []N {
+	re := regexp.MustCompile(`[^0-9\-.]`)
+	text = re.ReplaceAllString(text, " ")
+
+	re = regexp.MustCompile(`\s+`)
+	text = re.ReplaceAllString(text, " ")
+
+	words := strings.Split(text, " ")
+
+	var result []N
+	for _, word := range words {
+		if word != "" {
+			number, _ := strconv.ParseFloat(word, 64)
+			result = append(result, N(number))
 		}
 	}
 
@@ -202,6 +227,10 @@ func ToInt(text string) int {
 	return value
 }
 
+func ToUint(text string) uint {
+	return uint(ToInt(text))
+}
+
 func ToBool(text string) bool {
 	value, _ := strconv.ParseBool(text)
 	return value
@@ -210,4 +239,18 @@ func ToBool(text string) bool {
 func ToFloat64(text string) float64 {
 	value, _ := strconv.ParseFloat(text, 64)
 	return value
+}
+
+func ToNumeric[N Numeric](text string) N {
+	number, _ := strconv.ParseFloat(text, 64)
+	return N(number)
+}
+
+func GRPCErrorMessage(err error) string {
+	st, ok := status.FromError(err)
+	if ok {
+		return st.Message()
+	} else {
+		return err.Error()
+	}
 }
