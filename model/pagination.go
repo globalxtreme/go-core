@@ -31,11 +31,6 @@ func (p Pagination) ParsePagination() map[string]interface{} {
 }
 
 func Paginate[M any](query *gorm.DB, parameters url.Values, model M) ([]M, interface{}, error) {
-	var data []M
-
-	var total int64
-	query.Model(&model).Count(&total)
-
 	page, _ := strconv.Atoi(parameters.Get("page"))
 	if page == 0 {
 		page = 1
@@ -45,6 +40,19 @@ func Paginate[M any](query *gorm.DB, parameters url.Values, model M) ([]M, inter
 	if limit == 0 {
 		limit = 50
 	}
+
+	return PaginateManual(query, page, limit, model)
+}
+
+func PaginateManual[M any](query *gorm.DB, page int, limit int, model M) ([]M, interface{}, error) {
+	var data []M
+
+	if limit == 0 {
+		limit = 50
+	}
+
+	var total int64
+	query.Model(&model).Count(&total)
 
 	offset := (page - 1) * limit
 	res := query.Limit(limit).Offset(offset).Find(&data)
