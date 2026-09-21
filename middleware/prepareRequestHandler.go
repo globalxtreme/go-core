@@ -1,6 +1,7 @@
 package xtrememdw
 
 import (
+	"fmt"
 	xtremepkg "github.com/globalxtreme/go-core/v2/pkg"
 	xtremeres "github.com/globalxtreme/go-core/v2/response"
 	"net/http"
@@ -20,7 +21,7 @@ func PrepareRequestHandler(next http.Handler) http.Handler {
 
 			err := r.ParseMultipartForm(int64(maxPayload << 20))
 			if err != nil {
-				xtremeres.ErrXtremePayloadVeryLarge("")
+				xtremeres.ErrXtremePayloadVeryLarge(fmt.Sprintf("Maximum allowed size is %d MB. Error: %s", maxPayload, err.Error()))
 			}
 		} else if contentType == "application/json" || contentType == "application/x-www-form-urlencoded" {
 			err := r.ParseForm()
