@@ -32,18 +32,27 @@ const (
 
 	// Batas isi jawaban yang dibaca, supaya jawaban yang sangat besar tidak memenuhi memori
 	ASA_WEBHOOK_MAX_RESPONSE_SIZE = 10 << 20
+
+	// Header metadata eksekusi; dicatat ASA pada eksekusi dan tidak diteruskan ke $json.headers workflow
+	ASA_WEBHOOK_HEADER_DESCRIPTION     = "X-ASA-Description"
+	ASA_WEBHOOK_HEADER_CREATED_BY      = "X-ASA-Created-By"
+	ASA_WEBHOOK_HEADER_CREATED_BY_NAME = "X-ASA-Created-By-Name"
 )
 
 // Webhook memulai workflow ASA lewat node Webhook (trigger) dari service mana pun.
 //
 //	hook := xtremeasa.Webhook{
-//		Path: "wo-created",
-//		Data: map[string]interface{}{"woNumber": "WO-2026-00123"},
+//		Path:          "wo-created",
+//		Data:          map[string]interface{}{"woNumber": "WO-2026-00123"},
+//		Description:   "WO-2026-00123 dibuat",
+//		CreatedBy:     employee.ID,
+//		CreatedByName: employee.FullName,
 //	}
-//	hook.Push() // panggil SETELAH transaction commit
+//	res := hook.Push() // panggil SETELAH transaction commit
+//	res.ExecutionUUID  // UUID eksekusi yang dibuat ASA
 //
 // Domain ASA dan token selalu dibaca dari environment; pemanggil hanya mengisi Path dan, bila ada, Data, Query,
-// dan Headers. Node Webhook di ASA harus memakai Authentication "GX Service" dan memilih service pemilik token.
+// Headers, Description, CreatedBy, dan CreatedByName. Node Webhook di ASA harus memakai Authentication "GX Service" dan memilih service pemilik token.
 //
 // Satu panggilan memulai satu workflow (path + method unik di ASA). Untuk memulai beberapa workflow dari satu
 // kejadian, arahkan path ke workflow dispatcher yang memanggil workflow lain dengan node Execute Sub-workflow.
@@ -66,6 +75,16 @@ type Webhook struct {
 	// Headers tambahan; di workflow dibaca dengan $json.headers (nama huruf kecil).
 	// Header Authorization selalu diisi ASA Token dan tidak bisa diganti dari sini
 	Headers map[string]string
+
+	// Description keterangan eksekusi, tampil di detail eksekusi ASA. Opsional, maks. 500 karakter
+	Description string
+
+	// CreatedBy ID karyawan yang memicu eksekusi, maks. 45 karakter. Opsional; bila CreatedBy dan CreatedByName
+	// kosong, ASA mencatat pemilik workflow sebagai pemicu
+	CreatedBy string
+
+	// CreatedByName nama karyawan yang memicu eksekusi, maks. 250 karakter. Opsional
+	CreatedByName string
 }
 
 // WebhookResult adalah jawaban ASA atas satu panggilan webhook
@@ -73,7 +92,8 @@ type WebhookResult struct {
 	StatusCode int
 	Header     http.Header
 
-	// ExecutionUUID terisi bila node Webhook memakai Respond "Immediately"
+	// ExecutionUUID adalah result.executionUuid dari jawaban ASA, sudah diurai dari Body sehingga cukup dibaca
+	// res.ExecutionUUID. Terisi bila node Webhook memakai Respond "Immediately" (bawaan); kosong pada mode lain
 	ExecutionUUID string
 
 	// Body adalah isi jawaban apa adanya. Pada Respond "When last node finishes" dan
@@ -207,6 +227,18 @@ func (hook Webhook) request() (*http.Request, error) {
 		req.Header.Set(name, value)
 	}
 
+	// Metadata eksekusi; bila diisi, menimpa header bernama sama dari Headers
+	metadata := [][2]string{
+		{ASA_WEBHOOK_HEADER_DESCRIPTION, hook.Description},
+		{ASA_WEBHOOK_HEADER_CREATED_BY, hook.CreatedBy},
+		{ASA_WEBHOOK_HEADER_CREATED_BY_NAME, hook.CreatedByName},
+	}
+	for _, header := range metadata {
+		if value := headerValue(header[1]); value != "" {
+			req.Header.Set(header[0], value)
+		}
+	}
+
 	// Selalu paling akhir, supaya Headers dari pemanggil tidak menimpa token
 	req.Header.Set("Authorization", "Bearer "+token)
 
@@ -219,4 +251,9 @@ func (hook Webhook) timeout() time.Duration {
 	}
 
 	return ASA_WEBHOOK_DEFAULT_TIMEOUT
+}
+
+// headerValue: nilai satu baris untuk header; baris baru (mis. pada Description) diganti spasi
+func headerValue(value string) string {
+	return strings.TrimSpace(strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(value))
 }
