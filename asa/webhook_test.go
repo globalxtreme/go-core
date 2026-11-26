@@ -215,3 +215,47 @@ func TestTryPushNormalizesPathSlashes(t *testing.T) {
 		t.Fatalf("nested path = %s", got.URL.Path)
 	}
 }
+
+func TestTryPushSendsExecutionMetadata(t *testing.T) {
+	var got *http.Request
+
+	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		got = r
+	})
+
+	_, err := Webhook{
+		Path:          "wo-created",
+		Headers:       map[string]string{"X-ASA-Created-By": "other"},
+		Description:   "WO-1 dibuat\noleh CRM",
+		CreatedBy:     "EMP-1",
+		CreatedByName: "Yuswa",
+	}.TryPush()
+	if err != nil {
+		t.Fatalf("TryPush: %v", err)
+	}
+
+	if got.Header.Get("X-ASA-Description") != "WO-1 dibuat oleh CRM" {
+		t.Fatalf("description = %q", got.Header.Get("X-ASA-Description"))
+	}
+	if got.Header.Get("X-ASA-Created-By") != "EMP-1" || got.Header.Get("X-ASA-Created-By-Name") != "Yuswa" {
+		t.Fatalf("created by = %q %q", got.Header.Get("X-ASA-Created-By"), got.Header.Get("X-ASA-Created-By-Name"))
+	}
+}
+
+func TestTryPushOmitsEmptyExecutionMetadata(t *testing.T) {
+	var got *http.Request
+
+	serve(t, func(w http.ResponseWriter, r *http.Request) {
+		got = r
+	})
+
+	if _, err := (Webhook{Path: "ping"}).TryPush(); err != nil {
+		t.Fatalf("TryPush: %v", err)
+	}
+
+	for _, name := range []string{"X-ASA-Description", "X-ASA-Created-By", "X-ASA-Created-By-Name"} {
+		if _, ok := got.Header[name]; ok {
+			t.Fatalf("header %s should not be sent", name)
+		}
+	}
+}
